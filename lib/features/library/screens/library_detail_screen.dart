@@ -12,6 +12,8 @@ import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
 import 'package:shelf_snap/features/library/screens/create_library_screen.dart';
 import 'package:shelf_snap/features/library/sheets/add_book_sheet.dart';
+import 'package:shelf_snap/features/library/sheets/library_qr_sheet.dart';
+import 'package:shelf_snap/features/library/sheets/report_library_sheet.dart';
 import 'package:shelf_snap/features/library/widgets/books_tab.dart';
 import 'package:shelf_snap/features/library/widgets/member_avatars.dart';
 import 'package:shelf_snap/features/library/widgets/members_tab.dart';
@@ -89,6 +91,11 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
 
     if (action == _LibraryAction.addBook) {
       AddBookSheet.show(context, libraryId: library.id!);
+      return;
+    }
+
+    if (action == _LibraryAction.report) {
+      ReportLibrarySheet.show(context, library);
       return;
     }
 
@@ -202,16 +209,17 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
                         ),
                         // Title sits right after the back arrow
                         titleSpacing: 0,
-                        // Visitors have nothing to edit or leave
+                        // Visitors can only report an open library
                         actions: [
-                          if (isMember)
+                          if (isMember || (live.isOpen && !isOwner))
                             PopupMenuButton<_LibraryAction>(
                               tooltip: 'Library options',
                               icon: const Icon(Icons.more_vert_rounded),
                               onSelected: (action) =>
                                   _onAction(action, live, isOwner),
                               // Editors can type a book in; the owner edits or
-                              // deletes; everyone else can only leave
+                              // deletes; members leave; anyone but the owner
+                              // can report an open library
                               itemBuilder: (_) => [
                                 if (canEdit)
                                   const PopupMenuItem(
@@ -230,14 +238,23 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
                                       style: TextStyle(color: AppColors.error),
                                     ),
                                   ),
-                                ] else
-                                  const PopupMenuItem(
-                                    value: _LibraryAction.leave,
-                                    child: Text(
-                                      'Leave library',
-                                      style: TextStyle(color: AppColors.error),
+                                ] else ...[
+                                  if (live.isOpen)
+                                    const PopupMenuItem(
+                                      value: _LibraryAction.report,
+                                      child: Text('Report library'),
                                     ),
-                                  ),
+                                  if (isMember)
+                                    const PopupMenuItem(
+                                      value: _LibraryAction.leave,
+                                      child: Text(
+                                        'Leave library',
+                                        style: TextStyle(
+                                          color: AppColors.error,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ],
                             ),
                         ],
@@ -264,7 +281,7 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
                               Text(
                                 '$memberCount ${memberCount == 1 ? 'member' : 'members'}'
                                 ' · ${live.bookCount} ${live.bookCount == 1 ? 'book' : 'books'}'
-                                ' · ${live.isPublic ? 'Public' : 'Private'}',
+                                ' · ${live.accessLabel}',
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
@@ -280,10 +297,12 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
                                 const SizedBox(height: 8),
                                 _RunByRow(names: runBy),
                               ],
-                              if (live.isPublic && live.handle != null) ...[
+                              if (live.isOpen && live.handle != null) ...[
                                 const SizedBox(height: 4),
                                 _WebAddressRow(
                                   url: ApiConfig.catalogUrl(live.handle!),
+                                  onShowQr: () =>
+                                      LibraryQrSheet.show(context, live),
                                 ),
                               ],
                               const SizedBox(height: 8),
@@ -309,8 +328,8 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
                                         textStyle: textTheme.labelLarge,
                                       ),
                                     )
-                                  // Visitors to a public library can ask in
-                                  else if (!isMember && live.isPublic)
+                                  // Visitors to an open library can ask in
+                                  else if (!isMember && live.isOpen)
                                     _JoinButton(library: live),
                                 ],
                               ),
@@ -347,7 +366,7 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
   }
 }
 
-enum _LibraryAction { addBook, edit, delete, leave }
+enum _LibraryAction { addBook, edit, delete, leave, report }
 
 // "Run by you, Asha and 2 others": the owner and editors, so visitors
 // know who looks after the library
@@ -400,11 +419,13 @@ class _RunByRow extends StatelessWidget {
   }
 }
 
-// The library's web catalog address; tap to copy it and share it anywhere
+// The library's web catalog address; tap to copy it and share it anywhere,
+// or open its QR code
 class _WebAddressRow extends StatelessWidget {
   final String url;
+  final VoidCallback onShowQr;
 
-  const _WebAddressRow({required this.url});
+  const _WebAddressRow({required this.url, required this.onShowQr});
 
   Future<void> _copy(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -421,35 +442,43 @@ class _WebAddressRow extends StatelessWidget {
     return InkWell(
       onTap: () => _copy(context),
       borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.public_rounded,
-              size: 16,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                shown,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      // No vertical padding: the QR button already makes the row tall enough
+      child: Row(
+        children: [
+          const Icon(
+            Icons.public_rounded,
+            size: 16,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              shown,
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.copy_rounded,
-              size: 16,
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.copy_rounded,
+            size: 16,
+            color: AppColors.textSecondary,
+          ),
+          IconButton(
+            tooltip: 'Show QR code',
+            onPressed: onShowQr,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(
+              Icons.qr_code_2_rounded,
+              size: 20,
               color: AppColors.textSecondary,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
