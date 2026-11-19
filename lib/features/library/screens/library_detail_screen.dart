@@ -357,7 +357,7 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
               padding: EdgeInsets.only(top: pinnedHeight),
               child: TabBarView(
                 children: [
-                  BooksTab(libraryId: library.id!),
+                  BooksTab(libraryId: library.id!, canAdd: canEdit),
                   MembersTab(library: live),
                 ],
               ),

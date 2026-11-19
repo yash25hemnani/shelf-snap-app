@@ -12,8 +12,10 @@ import 'package:shelf_snap/features/library/widgets/book_card.dart';
 // the newest books with paging
 class BooksTab extends ConsumerStatefulWidget {
   final String libraryId;
+  // False for members who only view and for visitors; changes the empty text
+  final bool canAdd;
 
-  const BooksTab({super.key, required this.libraryId});
+  const BooksTab({super.key, required this.libraryId, this.canAdd = false});
 
   @override
   ConsumerState<BooksTab> createState() => _BooksTabState();
@@ -105,8 +107,12 @@ class _BooksTabState extends ConsumerState<BooksTab> {
       skipLoadingOnReload: true,
       data: (books) {
         if (books.isEmpty) {
-          return const Center(
-            child: Text('No Books Yet. Scan a Shelf or Add Manually!'),
+          return Center(
+            child: Text(
+              widget.canAdd
+                  ? 'No Books Yet. Scan a Shelf or Add Manually!'
+                  : 'No books here yet',
+            ),
           );
         }
 
