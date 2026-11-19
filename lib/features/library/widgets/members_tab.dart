@@ -11,7 +11,7 @@ import 'package:shelf_snap/features/library/providers/library_provider.dart';
 import 'package:shelf_snap/features/library/widgets/join_request_tile.dart';
 import 'package:shelf_snap/features/profile/models/user_model.dart';
 
-enum _MemberAction { toggleEdits, remove }
+enum _MemberAction { toggleEdits, makeOwner, remove }
 
 // List of a library's members, owner first, each with a role chip
 class MembersTab extends ConsumerWidget {
@@ -45,6 +45,39 @@ class MembersTab extends ConsumerWidget {
       messenger.showMessage('Removed ${member.name}');
     } catch (e) {
       messenger.showError("Couldn't remove member");
+    }
+  }
+
+  // Hands the library to this member. The owner can't take it back, so
+  // it's confirmed; they stay on as an editor.
+  Future<void> _confirmTransfer(
+    BuildContext context,
+    WidgetRef ref,
+    UserModel member,
+  ) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      icon: Icons.swap_horiz_rounded,
+      title: 'Make ${member.name} the owner?',
+      message:
+          "They'll run ${library.name}: invites, join requests, its web "
+          "address and deleting it. You'll stay on as an editor, and only "
+          'they can give it back.',
+      confirmLabel: 'Make owner',
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await ref
+          .read(libraryRepositoryProvider)
+          .transferOwnership(library, member.uid);
+      messenger.showMessage('${member.name} now owns ${library.name}');
+    } catch (e) {
+      debugPrint('transferOwnership failed: $e');
+      messenger.showError("Couldn't change the owner");
     }
   }
 
@@ -153,6 +186,11 @@ class MembersTab extends ConsumerWidget {
                           member,
                           !canEdit,
                         ),
+                        _MemberAction.makeOwner => _confirmTransfer(
+                          context,
+                          ref,
+                          member,
+                        ),
                         _MemberAction.remove => _confirmRemove(
                           context,
                           ref,
@@ -171,6 +209,14 @@ class MembersTab extends ConsumerWidget {
                             title: Text(
                               canEdit ? 'Remove edits' : 'Allow edits',
                             ),
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: _MemberAction.makeOwner,
+                          child: ListTile(
+                            leading: Icon(Icons.swap_horiz_rounded),
+                            title: Text('Make owner'),
                             contentPadding: EdgeInsets.zero,
                           ),
                         ),
