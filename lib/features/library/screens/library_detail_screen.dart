@@ -297,7 +297,10 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
                                 const SizedBox(height: 8),
                                 _RunByRow(names: runBy),
                               ],
-                              if (live.isOpen && live.handle != null) ...[
+                              // Only members share the link; visitors see Join
+                              if ((isMember || isOwner) &&
+                                  live.isOpen &&
+                                  live.handle != null) ...[
                                 const SizedBox(height: 4),
                                 _ShareRow(
                                   url: ApiConfig.catalogUrl(live.handle!),
