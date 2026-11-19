@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shelf_snap/core/config/api_config.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
@@ -68,7 +67,7 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
     final handle = value?.trim() ?? '';
     // The link is the only way into an unlisted library
     if (handle.isEmpty && _access == LibraryAccess.unlisted) {
-      return 'Unlisted libraries need a web address';
+      return 'Unlisted libraries need a link name';
     }
     if (handle.isEmpty) return null; // optional for public ones
     if (!LibraryModel.handlePattern.hasMatch(handle)) {
@@ -301,8 +300,8 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
                     const SizedBox(height: 20),
                     _FieldLabel(
                       _access == LibraryAccess.unlisted
-                          ? 'Web address'
-                          : 'Web address (optional)',
+                          ? 'Link name'
+                          : 'Link name (optional)',
                     ),
                     TextFormField(
                       controller: _handleController,
@@ -324,11 +323,10 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
                         _handleError = null;
                       }),
                       decoration: InputDecoration(
-                        prefixText: '/l/',
+                        prefixText: '/lib/',
                         hintText: 'book-buddies',
-                        // Full address so owners know where it'll live
-                        helperText:
-                            "Web catalog at ${ApiConfig.baseUrl.replaceFirst(RegExp(r'^https?://'), '')}/l/…",
+                        // The full link is copied from the library page
+                        helperText: 'The end of the link you share',
                         errorText: _handleError,
                       ),
                       validator: _validateHandle,

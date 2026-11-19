@@ -299,7 +299,7 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
                               ],
                               if (live.isOpen && live.handle != null) ...[
                                 const SizedBox(height: 4),
-                                _WebAddressRow(
+                                _ShareRow(
                                   url: ApiConfig.catalogUrl(live.handle!),
                                   onShowQr: () =>
                                       LibraryQrSheet.show(context, live),
@@ -419,64 +419,43 @@ class _RunByRow extends StatelessWidget {
   }
 }
 
-// The library's web catalog address; tap to copy it and share it anywhere,
-// or open its QR code
-class _WebAddressRow extends StatelessWidget {
+// Ways to share an open library. The link isn't shown, only copied: it
+// opens the web catalog, whose Join button brings people into the app.
+class _ShareRow extends StatelessWidget {
   final String url;
   final VoidCallback onShowQr;
 
-  const _WebAddressRow({required this.url, required this.onShowQr});
+  const _ShareRow({required this.url, required this.onShowQr});
 
   Future<void> _copy(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     await Clipboard.setData(ClipboardData(text: url));
-    messenger.showMessage('Web address copied');
+    messenger.showMessage('Link copied, share it to invite people');
   }
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    // Drop the scheme; it's still in what gets copied
-    final shown = url.replaceFirst(RegExp(r'^https?://'), '');
+    final style = TextButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+    );
 
-    return InkWell(
-      onTap: () => _copy(context),
-      borderRadius: BorderRadius.circular(8),
-      // No vertical padding: the QR button already makes the row tall enough
+    // Pulled left so the first icon lines up with the text above
+    return Transform.translate(
+      offset: const Offset(-8, 0),
       child: Row(
         children: [
-          const Icon(
-            Icons.public_rounded,
-            size: 16,
-            color: AppColors.textSecondary,
+          TextButton.icon(
+            onPressed: () => _copy(context),
+            style: style,
+            icon: const Icon(Icons.link_rounded, size: 18),
+            label: const Text('Copy link'),
           ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              shown,
-              style: textTheme.bodyMedium?.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.copy_rounded,
-            size: 16,
-            color: AppColors.textSecondary,
-          ),
-          IconButton(
-            tooltip: 'Show QR code',
+          TextButton.icon(
             onPressed: onShowQr,
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(
-              Icons.qr_code_2_rounded,
-              size: 20,
-              color: AppColors.textSecondary,
-            ),
+            style: style,
+            icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+            label: const Text('QR code'),
           ),
         ],
       ),

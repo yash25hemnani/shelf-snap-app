@@ -6,9 +6,9 @@ import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
 
-// A QR code of the library's web address, to print for a café counter or
-// show on a phone. Phone cameras open the web catalog; the app's
-// "Open a library link" scanner opens the library itself.
+// A QR code of the library's link, to print for a café counter or show on
+// a phone. Phone cameras open the web catalog, whose Join button opens the
+// app; the scanner on the Libraries screen opens the library directly.
 class LibraryQrSheet extends StatelessWidget {
   final LibraryModel library;
 
@@ -25,7 +25,7 @@ class LibraryQrSheet extends StatelessWidget {
   Future<void> _copy(BuildContext context, String url) async {
     final messenger = ScaffoldMessenger.of(context);
     await Clipboard.setData(ClipboardData(text: url));
-    messenger.showMessage('Web address copied');
+    messenger.showMessage('Link copied, share it to invite people');
   }
 
   @override
@@ -79,15 +79,6 @@ class LibraryQrSheet extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              url.replaceFirst(RegExp(r'^https?://'), ''),
-              style: textTheme.bodyMedium?.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
