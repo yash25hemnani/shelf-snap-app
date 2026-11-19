@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shelf_snap/features/library/models/book_model.dart';
 import 'package:shelf_snap/features/library/models/join_request.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
+import 'package:shelf_snap/features/library/models/library_report.dart';
 
 class LibraryRepository {
   final _db = FirebaseFirestore.instance;
@@ -59,6 +60,55 @@ class LibraryRepository {
   Future<bool> isHandleTaken(String handle, {String? libraryId}) async {
     final snap = await _handleDoc(handle).get();
     return snap.exists && snap.data()?['libraryId'] != libraryId;
+  }
+
+  // The library a web address points at, for opening a link or QR code.
+  // Null when the handle is free, or the library is private to this user
+  // (the rules refuse the read).
+  Future<LibraryModel?> findLibraryByHandle(String handle) async {
+    final handleSnap = await _handleDoc(handle).get();
+    final libraryId = handleSnap.data()?['libraryId'] as String?;
+    if (libraryId == null) return null;
+
+    try {
+      final snap = await _db.collection('libraries').doc(libraryId).get();
+      if (!snap.exists) return null;
+      final library = LibraryModel.fromMap(snap.id, snap.data()!);
+      // A private library keeps its handle; only open ones answer to it
+      return library.handle == handle ? library : null;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return null;
+      rethrow;
+    }
+  }
+
+  // Sends a report on a public or unlisted library to be reviewed
+  Future<void> reportLibrary(LibraryReport report) =>
+      _db.collection('reports').doc(report.id).set(report.toMap());
+
+  // Hands the library to another member. The old owner stays on as an
+  // editor. The handle and waiting join requests carry the owner too, so
+  // they move in the same batch; the rules check all three together.
+  Future<void> transferOwnership(
+    LibraryModel library,
+    String newOwnerId,
+  ) async {
+    final libraryRef = _db.collection('libraries').doc(library.id);
+    final requests = await _joinRequests(library.id!).limit(400).get();
+
+    final batch = _db.batch()
+      ..update(libraryRef, {
+        'ownerId': newOwnerId,
+        'editors': {...library.editors, library.ownerId, newOwnerId}.toList(),
+        'updatedAt': Timestamp.now(),
+      });
+    if (library.handle != null) {
+      batch.update(_handleDoc(library.handle!), {'ownerId': newOwnerId});
+    }
+    for (final doc in requests.docs) {
+      batch.update(doc.reference, {'ownerId': newOwnerId});
+    }
+    await batch.commit();
   }
 
   // Most recently active public libraries. Capped, since anyone can list

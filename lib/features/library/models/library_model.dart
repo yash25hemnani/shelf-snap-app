@@ -3,9 +3,10 @@ import 'package:diacritic/diacritic.dart';
 import 'package:flutter/painting.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
 
-// Public libraries can be found and opened by anyone signed in; outsiders
-// only see their public books. Not called visibility, books have that.
-enum LibraryAccess { private, public }
+// Public libraries are listed for everyone signed in; unlisted ones open
+// only from their link or QR code. Outsiders see only public books in
+// both. Not called visibility, books have that.
+enum LibraryAccess { private, unlisted, public }
 
 class LibraryModel {
   final String? id;
@@ -85,6 +86,16 @@ class LibraryModel {
 
   bool get isPublic => access == LibraryAccess.public;
 
+  // Public or unlisted: people outside can open it, ask to join, and see
+  // its web page
+  bool get isOpen => access != LibraryAccess.private;
+
+  String get accessLabel => switch (access) {
+    LibraryAccess.private => 'Private',
+    LibraryAccess.unlisted => 'Unlisted',
+    LibraryAccess.public => 'Public',
+  };
+
   // Owner first, then editors; the people who run the library
   List<String> get runBy => {ownerId, ...editors}.toList();
 
@@ -110,6 +121,16 @@ class LibraryModel {
     ).replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-+|-+$'), '');
     final capped = slug.length > 30 ? slug.substring(0, 30) : slug;
     return capped.replaceAll(RegExp(r'-+$'), '');
+  }
+
+  // The handle in a pasted or scanned web address ("…/l/book-buddies"),
+  // or a bare handle; null when it can't be one
+  static String? parseHandle(String input) {
+    var text = input.trim().toLowerCase();
+    final marker = text.lastIndexOf('/l/');
+    if (marker != -1) text = text.substring(marker + 3);
+    text = text.split(RegExp(r'[/?#]')).first;
+    return handlePattern.hasMatch(text) ? text : null;
   }
 
   ImageProvider get bannerImage =>

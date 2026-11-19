@@ -9,6 +9,7 @@ import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
 import 'package:shelf_snap/features/library/screens/library_detail_screen.dart';
 import 'package:shelf_snap/features/library/screens/create_library_screen.dart';
+import 'package:shelf_snap/features/library/sheets/open_library_link_sheet.dart';
 import 'package:shelf_snap/features/library/widgets/library_card.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -111,6 +112,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           title: const Text("Libraries"),
           actions: [
             IconButton(
+              tooltip: 'Open a library link',
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              onPressed: () => OpenLibraryLinkSheet.show(context),
+            ),
+            IconButton(
               tooltip: 'Notifications',
               icon: Badge.count(
                 count: notificationCount,
@@ -164,12 +170,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   child: TabBarView(
                     children: [
                       _buildList(
-                        visible.where((l) => !l.isPublic).toList(),
+                        visible.where((l) => !l.isOpen).toList(),
                         userId,
                         LibraryAccess.private,
                       ),
+                      // The user's unlisted libraries sit here too; only
+                      // others' unlisted ones stay out of the list
                       _buildList(
-                        visible.where((l) => l.isPublic).toList(),
+                        visible.where((l) => l.isOpen).toList(),
                         userId,
                         LibraryAccess.public,
                         others: otherPublic,

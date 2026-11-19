@@ -66,7 +66,11 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
 
   String? _validateHandle(String? value) {
     final handle = value?.trim() ?? '';
-    if (handle.isEmpty) return null; // optional
+    // The link is the only way into an unlisted library
+    if (handle.isEmpty && _access == LibraryAccess.unlisted) {
+      return 'Unlisted libraries need a web address';
+    }
+    if (handle.isEmpty) return null; // optional for public ones
     if (!LibraryModel.handlePattern.hasMatch(handle)) {
       return '3-30 lowercase letters, numbers or hyphens';
     }
@@ -97,8 +101,8 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
     final now = DateTime.now();
     final oldHandle = widget.library?.handle;
     final typed = _handleController.text.trim();
-    // Private libraries keep any handle they had, for when they go public
-    final handle = _access == LibraryAccess.public
+    // Private libraries keep any handle they had, for when they open again
+    final handle = _access != LibraryAccess.private
         ? (typed.isEmpty ? null : typed)
         : oldHandle;
 
@@ -263,6 +267,11 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
                         icon: Icon(Icons.lock_outline_rounded),
                       ),
                       ButtonSegment(
+                        value: LibraryAccess.unlisted,
+                        label: Text('Unlisted'),
+                        icon: Icon(Icons.link_rounded),
+                      ),
+                      ButtonSegment(
                         value: LibraryAccess.public,
                         label: Text('Public'),
                         icon: Icon(Icons.public_rounded),
@@ -274,18 +283,27 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _access == LibraryAccess.public
-                        ? 'Anyone can find this library and see its public books'
-                        : 'Only people you invite can see it',
+                    switch (_access) {
+                      LibraryAccess.public =>
+                        'Anyone can find this library and see its public books',
+                      LibraryAccess.unlisted =>
+                        "Not listed in the app; people with its link or QR code can open it",
+                      LibraryAccess.private =>
+                        'Only people you invite can see it',
+                    },
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.textSecondary,
                     ),
                   ),
 
-                  // Only public libraries get a web page
-                  if (_access == LibraryAccess.public) ...[
+                  // Public and unlisted libraries get a web page
+                  if (_access != LibraryAccess.private) ...[
                     const SizedBox(height: 20),
-                    const _FieldLabel('Web address (optional)'),
+                    _FieldLabel(
+                      _access == LibraryAccess.unlisted
+                          ? 'Web address'
+                          : 'Web address (optional)',
+                    ),
                     TextFormField(
                       controller: _handleController,
                       autocorrect: false,
