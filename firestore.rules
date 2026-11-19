@@ -13,6 +13,12 @@ service cloud.firestore {
     function libraryData(libId) {
       return get(/databases/$(database)/documents/libraries/$(libId)).data;
     }
+    function libraryPath(libId) {
+      return /databases/$(database)/documents/libraries/$(libId);
+    }
+    // Public or unlisted: people outside can open it by id, ask to join
+    // and see its public books. Only public ones can be listed.
+    function isOpen(lib) { return lib.get('access', 'private') in ['public', 'unlisted']; }
     function isMemberOf(lib) { return uid() in lib.members; }
     // Old libraries have no editors list; the owner always counts
     function isEditorOf(lib) { return uid() == lib.ownerId || uid() in lib.get('editors', []); }
@@ -145,11 +151,15 @@ service cloud.firestore {
       }
 
       // resource == null: a deleted library reads as missing instead of failing.
-      // Member check first: old libraries have no access field. Listing public
-      // libraries works because that query filters on access == 'public'.
-      allow read: if signedIn() && (resource == null
+      // Member check first: old libraries have no access field. An unlisted
+      // library opens by id (found through its handle) but is never listed;
+      // listing public libraries works because that query filters on
+      // access == 'public'.
+      allow get: if signedIn() && (resource == null
         || isMemberOf(resource.data)
-        || resource.data.access == 'public');
+        || isOpen(resource.data));
+      allow list: if signedIn() && (isMemberOf(resource.data)
+        || resource.data.get('access', 'private') == 'public');
 
       allow create: if signedIn()
         && request.resource.data.ownerId == uid()
@@ -157,7 +167,7 @@ service cloud.firestore {
         && request.resource.data.editors == [uid()]
         && request.resource.data.bookCount == 0
         && request.resource.data.uniqueCount == 0
-        && request.resource.data.get('access', 'private') in ['private', 'public']
+        && request.resource.data.get('access', 'private') in ['private', 'unlisted', 'public']
         && handleOk();
 
       allow update: if signedIn() && (
@@ -166,8 +176,22 @@ service cloud.firestore {
         (uid() == resource.data.ownerId
           && request.resource.data.ownerId == resource.data.ownerId
           && uid() in request.resource.data.members
-          && request.resource.data.get('access', 'private') in ['private', 'public']
+          && request.resource.data.get('access', 'private') in ['private', 'unlisted', 'public']
           && handleOk())
+
+        // Owner handing the library to another member, who becomes an
+        // editor too; the old owner stays a member and an editor. The
+        // handle doc moves to the new owner in the same batch.
+        || (uid() == resource.data.ownerId
+          && changed().hasOnly(['ownerId', 'editors', 'updatedAt'])
+          && request.resource.data.ownerId != uid()
+          && request.resource.data.ownerId in resource.data.members
+          && request.resource.data.editors.toSet()
+               == resource.data.get('editors', []).toSet()
+                    .union([uid(), request.resource.data.ownerId].toSet())
+          && (resource.data.get('handle', null) == null
+              || getAfter(handlePath(resource.data.handle)).data.ownerId
+                   == request.resource.data.ownerId))
 
         // Editors: only the counts, when adding or removing books
         || (isEditorOf(resource.data)
@@ -199,7 +223,7 @@ service cloud.firestore {
           isEditorOf(libraryData(libId))
           || (isMemberOf(libraryData(libId))
               && resource.data.visibility == 'public')
-          || (libraryData(libId).get('access', 'private') == 'public'
+          || (isOpen(libraryData(libId))
               && resource.data.visibility == 'public'));
 
         // Copies on loan can never be more than the copies owned
@@ -227,11 +251,11 @@ service cloud.firestore {
         allow read: if signedIn()
           && (uid() == reqUid || uid() == libraryData(libId).ownerId);
 
-        // Only for a public library you aren't in yet. The username must
+        // Only for an open library you aren't in yet. The username must
         // match the profile, so nobody can ask under someone else's name.
         allow create: if signedIn()
           && uid() == reqUid
-          && libraryData(libId).get('access', 'private') == 'public'
+          && isOpen(libraryData(libId))
           && !(uid() in libraryData(libId).members)
           && request.resource.data.keys().hasOnly(
                ['uid', 'username', 'ownerId', 'libraryName', 'createdAt'])
@@ -249,6 +273,13 @@ service cloud.firestore {
         allow delete: if signedIn()
           && (uid() == reqUid || resource.data.ownerId == uid()
               || uid() == libraryData(libId).ownerId);
+
+        // A waiting request follows the library to its new owner, in the
+        // transfer batch. get() still sees the old owner.
+        allow update: if signedIn()
+          && uid() == libraryData(libId).ownerId
+          && changed().hasOnly(['ownerId'])
+          && request.resource.data.ownerId == getAfter(libraryPath(libId)).data.ownerId;
       }
     }
 
@@ -274,6 +305,35 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/libraries/$(request.resource.data.libraryId)).data.get('handle', null) == handle;
 
       allow delete: if signedIn() && resource.data.ownerId == uid();
+
+      // Moves to the new owner in the batch that transfers the library
+      allow update: if signedIn()
+        && resource.data.ownerId == uid()
+        && changed().hasOnly(['ownerId'])
+        && getAfter(libraryPath(resource.data.libraryId)).data.ownerId
+             == request.resource.data.ownerId;
+    }
+
+    // ---------- Reports ----------
+    // Someone flagging a public or unlisted library. Id {libraryId}_{uid},
+    // so one per person per library; sending again replaces it. Nobody
+    // reads these in the app: they're reviewed in the Firebase console.
+    match /reports/{reportId} {
+      allow read, delete: if false;
+      allow create, update: if signedIn()
+        && request.resource.data.keys().hasOnly(
+             ['libraryId', 'libraryName', 'reporterId', 'reason', 'note', 'createdAt'])
+        && request.resource.data.reporterId == uid()
+        && reportId == request.resource.data.libraryId + '_' + uid()
+        && request.resource.data.reason in ['spam', 'inappropriate', 'impersonation', 'other']
+        && request.resource.data.libraryName is string
+        && request.resource.data.libraryName.size() <= 100
+        && (request.resource.data.get('note', null) == null
+            || (request.resource.data.note is string
+                && request.resource.data.note.size() <= 500))
+        && request.resource.data.createdAt == request.time
+        && isOpen(libraryData(request.resource.data.libraryId))
+        && libraryData(request.resource.data.libraryId).ownerId != uid();
     }
 
     // ---------- Invites ----------
