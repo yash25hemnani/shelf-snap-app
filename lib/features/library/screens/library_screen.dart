@@ -9,8 +9,9 @@ import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
 import 'package:shelf_snap/features/library/screens/library_detail_screen.dart';
 import 'package:shelf_snap/features/library/screens/create_library_screen.dart';
-import 'package:shelf_snap/features/library/sheets/open_library_link_sheet.dart';
+import 'package:shelf_snap/features/library/services/library_link_service.dart';
 import 'package:shelf_snap/features/library/widgets/library_card.dart';
+import 'package:shelf_snap/features/scanner/screens/qr_scan_screen.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -38,6 +39,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       context,
       MaterialPageRoute(builder: (_) => LibraryDetailScreen(library: library)),
     );
+  }
+
+  // Scans a library's QR code and opens it, for codes on a café counter
+  Future<void> _scanLibraryCode() async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final code = await navigator.push<String>(
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (code == null || !mounted) return;
+    await LibraryLinkService.open(ref, navigator, messenger, code);
   }
 
   // One tab: the user's own libraries, the New library row, then on the
@@ -112,9 +124,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           title: const Text("Libraries"),
           actions: [
             IconButton(
-              tooltip: 'Open a library link',
+              tooltip: 'Scan a library QR code',
               icon: const Icon(Icons.qr_code_scanner_rounded),
-              onPressed: () => OpenLibraryLinkSheet.show(context),
+              onPressed: _scanLibraryCode,
             ),
             IconButton(
               tooltip: 'Notifications',

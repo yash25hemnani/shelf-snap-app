@@ -20,7 +20,7 @@ class LibraryModel {
   final List<String> editors; // can edit copies; always inside members
   final String banner; // key in AppColors.libraryBanners
   final LibraryAccess access;
-  // Web address name, the {handle} in /l/{handle}; reserved in libraryHandles
+  // Web address name, the {handle} in /lib/{handle}; reserved in libraryHandles
   final String? handle;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -123,14 +123,15 @@ class LibraryModel {
     return capped.replaceAll(RegExp(r'-+$'), '');
   }
 
-  // The handle in a pasted or scanned web address ("…/l/book-buddies"),
-  // or a bare handle; null when it can't be one
+  // The handle in a library link: the web catalog address
+  // ("…/lib/book-buddies") or the catalog's Join button
+  // ("shelfsnap://lib/book-buddies"); null for anything else
   static String? parseHandle(String input) {
-    var text = input.trim().toLowerCase();
-    final marker = text.lastIndexOf('/l/');
-    if (marker != -1) text = text.substring(marker + 3);
-    text = text.split(RegExp(r'[/?#]')).first;
-    return handlePattern.hasMatch(text) ? text : null;
+    final text = input.trim().toLowerCase();
+    final marker = text.lastIndexOf('/lib/');
+    if (marker == -1) return null;
+    final handle = text.substring(marker + 5).split(RegExp(r'[/?#]')).first;
+    return handlePattern.hasMatch(handle) ? handle : null;
   }
 
   ImageProvider get bannerImage =>

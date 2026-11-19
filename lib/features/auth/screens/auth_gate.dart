@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/core/layout/app_shell.dart';
 import 'package:shelf_snap/features/auth/screens/login_screen.dart';
 import 'package:shelf_snap/features/auth/services/auth_service.dart';
+import 'package:shelf_snap/features/library/widgets/library_link_listener.dart';
 import 'package:shelf_snap/features/profile/providers/user_provider.dart';
 import 'package:shelf_snap/features/profile/screens/choose_username_screen.dart';
 
@@ -31,8 +32,9 @@ class AuthGate extends ConsumerWidget {
         final profileAsync = ref.watch(userProfileProvider(user.uid));
 
         return profileAsync.when(
-          data: (profile) =>
-              profile == null ? const ChooseUsernameScreen() : const AppShell(),
+          data: (profile) => profile == null
+              ? const ChooseUsernameScreen()
+              : const LibraryLinkListener(child: AppShell()),
           loading: () =>
               const Scaffold(body: Center(child: CircularProgressIndicator())),
           error: (err, stack) => _ProfileError(error: err),

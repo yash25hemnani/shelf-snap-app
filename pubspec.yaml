@@ -60,6 +60,7 @@ dependencies:
   dicebear_styles: ^10.6.0
   path_provider: ^2.1.6
   qr_flutter: ^4.1.0
+  app_links: ^7.0.0
 
 dev_dependencies:
   flutter_test:

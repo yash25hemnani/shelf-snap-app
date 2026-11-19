@@ -10,6 +10,7 @@ class ApiConfig {
     );
   }
 
-  // Public web catalog of a public library, served by the wrapper
-  static String catalogUrl(String handle) => '$baseUrl/l/$handle';
+  // Web catalog of a public or unlisted library, served by the wrapper.
+  // This is the link people share: its Join button opens the app.
+  static String catalogUrl(String handle) => '$baseUrl/lib/$handle';
 }
