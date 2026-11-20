@@ -26,6 +26,7 @@ import 'package:shelf_snap/features/reading/screens/reading_log_detail_screen.da
 import 'package:shelf_snap/features/reading/screens/reading_logs_screen.dart';
 import 'package:shelf_snap/features/reading/screens/reading_stats_screen.dart';
 import 'package:shelf_snap/features/reading/widgets/number_dialog.dart';
+import 'package:shelf_snap/features/update/widgets/update_card.dart';
 
 // Progress text and bar fill for a book in progress, shared by both cards
 ({String label, double? fraction}) _progressOf(ReadingLogModel log) {
@@ -157,6 +158,8 @@ class HomeScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Shows only when GitHub has a newer APK
+                      const UpdateCard(),
                       _StatsCard(
                         year: year,
                         stats: stats,
