@@ -10,7 +10,7 @@ import 'package:shelf_snap/features/update/models/app_release.dart';
 // one per start.
 class UpdateService {
   static const _latestUrl =
-      'https://api.github.com/repos/yash25hemnani/shelf-snap/releases/latest';
+      'https://api.github.com/repos/yash25hemnani/shelf-snap-app/releases/latest';
 
   // Only the sideloaded Android app updates this way; the web build
   // updates itself when Hosting is deployed
