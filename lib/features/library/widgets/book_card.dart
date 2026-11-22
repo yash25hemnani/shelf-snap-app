@@ -5,13 +5,17 @@ import 'package:shelf_snap/features/library/models/book_model.dart';
 class BookCard extends StatelessWidget {
   final BookModel book;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final bool owned; // in one of the user's libraries, any edition
+  final bool selected; // picked in the books grid's select mode
 
   const BookCard({
     super.key,
     required this.book,
     this.onTap,
+    this.onLongPress,
     this.owned = false,
+    this.selected = false,
   });
 
   @override
@@ -19,6 +23,8 @@ class BookCard extends StatelessWidget {
     final theme = Theme.of(context);
     final author = book.authorLine;
     final coverUrl = book.coverUrl;
+    // Same outline and tick for both; they never show on one grid
+    final ringed = owned || selected;
 
     final placeholder = Container(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -27,6 +33,7 @@ class BookCard extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -34,7 +41,7 @@ class BookCard extends StatelessWidget {
           Expanded(
             // Drawn over the cover, so the grid doesn't shift
             child: Container(
-              foregroundDecoration: owned
+              foregroundDecoration: ringed
                   ? BoxDecoration(
                       border: Border.all(color: AppColors.primary, width: 2.5),
                       borderRadius: BorderRadius.circular(6),
@@ -69,7 +76,7 @@ class BookCard extends StatelessWidget {
                         ),
                       ),
                     // The tick means the outline isn't told by colour alone
-                    if (owned)
+                    if (ringed)
                       const Positioned(
                         left: 6,
                         bottom: 6,

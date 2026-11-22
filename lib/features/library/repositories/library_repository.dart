@@ -546,6 +546,58 @@ class LibraryRepository {
         });
   }
 
+  // Shows or hides many books at once, from the books grid's selection
+  Future<void> updateVisibilityMany(
+    String libraryId,
+    List<String> bookIds,
+    BookVisibility visibility,
+  ) async {
+    final books = _db
+        .collection('libraries')
+        .doc(libraryId)
+        .collection('books');
+
+    // A batch holds at most 500 writes
+    for (var i = 0; i < bookIds.length; i += 400) {
+      final batch = _db.batch();
+      for (final id in bookIds.skip(i).take(400)) {
+        batch.update(books.doc(id), {'visibility': visibility.name});
+      }
+      await batch.commit();
+    }
+  }
+
+  // Removes whole books, every copy, from the books grid's selection. Books
+  // out on loan are left alone (an editor's delete would be refused) and
+  // returned, so the caller can say so.
+  Future<List<BookModel>> deleteBooks(
+    String libraryId,
+    List<BookModel> books,
+  ) async {
+    final libraryRef = _db.collection('libraries').doc(libraryId);
+    final lent = books.where((b) => b.lentCount > 0).toList();
+    final removable = books
+        .where((b) => b.lentCount == 0 && b.id != null)
+        .toList();
+
+    for (var i = 0; i < removable.length; i += 400) {
+      final chunk = removable.skip(i).take(400).toList();
+      final batch = _db.batch();
+      for (final book in chunk) {
+        batch.delete(libraryRef.collection('books').doc(book.id));
+      }
+      batch.update(libraryRef, {
+        'bookCount': FieldValue.increment(
+          -chunk.fold(0, (total, b) => total + b.noOfCopies),
+        ),
+        'uniqueCount': FieldValue.increment(-chunk.length),
+        'updatedAt': Timestamp.now(),
+      });
+      await batch.commit();
+    }
+    return lent;
+  }
+
   // Private books are hidden from viewers; only editors can change this
   Future<void> updateVisibility(
     String libraryId,
