@@ -47,6 +47,27 @@ final myBookLoanProvider = StreamProvider.autoDispose
           .watchMyBookLoan(ids.libraryId, ids.bookId, userId);
     });
 
+// Copies of one library's books out on loan, overdue first, then the
+// soonest due; loans with no due date last
+final libraryLentLoansProvider = StreamProvider.autoDispose
+    .family<List<LoanModel>, String>(
+      (ref, libraryId) => ref
+          .watch(loanRepositoryProvider)
+          .watchLibraryLentLoans(libraryId)
+          .map(
+            (loans) => [...loans]
+              ..sort((a, b) {
+                final byOverdue = (b.isOverdue ? 1 : 0) - (a.isOverdue ? 1 : 0);
+                if (byOverdue != 0) return byOverdue;
+                final ad = a.dueOn, bd = b.dueOn;
+                if (ad == null || bd == null) {
+                  return (ad == null ? 1 : 0) - (bd == null ? 1 : 0);
+                }
+                return ad.compareTo(bd);
+              }),
+          ),
+    );
+
 // Requested, approved and lent loans for one book, for editors on its
 // book page. Oldest request first, so people are answered in order.
 final bookLoansProvider = StreamProvider.autoDispose

@@ -445,6 +445,24 @@ class LoanRepository {
         );
   }
 
+  // Copies of this library's books out on loan right now, for editors on
+  // the library page. Equality filters only, so no composite index.
+  Stream<List<LoanModel>> watchLibraryLentLoans(
+    String libraryId, {
+    int limit = 100,
+  }) {
+    return _db
+        .collection('loans')
+        .where('libraryId', isEqualTo: libraryId)
+        .where('status', isEqualTo: LoanStatus.lent.name)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((d) => LoanModel.fromMap(d.id, d.data())).toList(),
+        );
+  }
+
   // The user's open loan on this book, or null. Borrowers can't read other
   // people's loans, so this is what the book page uses for them.
   Stream<LoanModel?> watchMyBookLoan(
