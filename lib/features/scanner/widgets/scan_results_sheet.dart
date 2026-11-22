@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
+import 'package:shelf_snap/core/widgets/confirm_dialog.dart';
 import 'package:shelf_snap/features/auth/services/auth_service.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
@@ -39,9 +40,30 @@ class _ScanResultsSheetState extends ConsumerState<ScanResultsSheet> {
     return libraries.first.id!; // libraries from Firestore always have an id
   }
 
-  Future<void> _save(String libraryId) async {
+  Future<void> _save(String libraryId, Set<String> owned) async {
     final messenger = ScaffoldMessenger.of(context);
     final results = ref.read(scanSessionProvider).results;
+    // Books already in the library become extra copies, so ask first
+    final dupes = [
+      for (final r in results)
+        if (owned.contains(r.book.readingKey)) r.book.title,
+    ];
+    if (dupes.isNotEmpty) {
+      final confirmed = await showConfirmDialog(
+        context,
+        icon: Icons.library_books_outlined,
+        title: dupes.length == 1
+            ? 'Already in this library'
+            : '${dupes.length} already in this library',
+        message: dupes.length == 1
+            ? 'Saving adds another copy of ${dupes.first}. Swipe it off '
+                  'the list to skip it.'
+            : 'Saving adds another copy of each. Swipe them off the list '
+                  'to skip them.',
+        confirmLabel: dupes.length == 1 ? 'Add copy' : 'Add copies',
+      );
+      if (!confirmed || !mounted) return;
+    }
     setState(() => _isSaving = true);
 
     try {
@@ -64,6 +86,22 @@ class _ScanResultsSheetState extends ConsumerState<ScanResultsSheet> {
     final userId = AuthService().currentUser!.uid;
     final librariesAsync = ref.watch(editableLibrariesProvider(userId));
     final results = ref.watch(scanSessionProvider).results;
+
+    // Which found books the chosen library already has, to mark them
+    final libraries = librariesAsync.valueOrNull ?? const <LibraryModel>[];
+    final selectedId = libraries.isEmpty ? null : _pickLibrary(libraries);
+    final keys = {for (final r in results) ?r.book.readingKey}.toList()..sort();
+    final owned = selectedId == null
+        ? const <String>{}
+        : ref
+                  .watch(
+                    ownedKeysProvider((
+                      libraryId: selectedId,
+                      keys: keys.join(','),
+                    )),
+                  )
+                  .valueOrNull ??
+              const <String>{};
 
     return SafeArea(
       child: Column(
@@ -94,7 +132,9 @@ class _ScanResultsSheetState extends ConsumerState<ScanResultsSheet> {
                       selectedId: libraryId,
                       onChanged: _selectLibrary,
                       isSaving: _isSaving,
-                      onSave: results.isEmpty ? null : () => _save(libraryId),
+                      onSave: results.isEmpty
+                          ? null
+                          : () => _save(libraryId, owned),
                     );
                   },
                   error: (e, _) => Text('Could not load libraries: $e'),
@@ -137,7 +177,12 @@ class _ScanResultsSheetState extends ConsumerState<ScanResultsSheet> {
                     child: ListTile(
                       leading: _Cover(url: r.book.coverUrl),
                       title: Text(r.book.title),
-                      subtitle: Text(r.book.authorLine ?? 'Unknown author'),
+                      subtitle: owned.contains(r.book.readingKey)
+                          ? const Text(
+                              'Already in this library, saving adds a copy',
+                              style: TextStyle(color: AppColors.warning),
+                            )
+                          : Text(r.book.authorLine ?? 'Unknown author'),
                     ),
                   );
                 },

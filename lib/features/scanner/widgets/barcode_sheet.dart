@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
+import 'package:shelf_snap/core/widgets/confirm_dialog.dart';
 import 'package:shelf_snap/features/auth/services/auth_service.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
@@ -37,8 +39,33 @@ class _BarcodeSheetState extends ConsumerState<BarcodeSheet> {
     return libraries.first.id!; // libraries from Firestore always have an id
   }
 
-  Future<void> _save(String libraryId, List<BarcodeHit> hits) async {
+  Future<void> _save(
+    String libraryId,
+    List<BarcodeHit> hits,
+    Set<String> owned,
+  ) async {
     final messenger = ScaffoldMessenger.of(context);
+    // Books already in the library become extra copies, so ask first
+    final dupes = [
+      for (final hit in hits)
+        if (owned.contains(hit.book!.readingKey)) hit.book!.title,
+    ];
+    if (dupes.isNotEmpty) {
+      final confirmed = await showConfirmDialog(
+        context,
+        icon: Icons.library_books_outlined,
+        title: dupes.length == 1
+            ? 'Already in this library'
+            : '${dupes.length} already in this library',
+        message: dupes.length == 1
+            ? 'Saving adds another copy of ${dupes.first}. Swipe it off '
+                  'the list to skip it.'
+            : 'Saving adds another copy of each. Swipe them off the list '
+                  'to skip them.',
+        confirmLabel: dupes.length == 1 ? 'Add copy' : 'Add copies',
+      );
+      if (!confirmed || !mounted) return;
+    }
     setState(() => _isSaving = true);
 
     try {
@@ -71,6 +98,23 @@ class _BarcodeSheetState extends ConsumerState<BarcodeSheet> {
         .where((h) => h.status == HitStatus.found)
         .toList();
 
+    // Which found books the chosen library already has, to mark them
+    final libraries = librariesAsync.valueOrNull ?? const <LibraryModel>[];
+    final selectedId = libraries.isEmpty ? null : _pickLibrary(libraries);
+    final keys = {for (final h in foundHits) ?h.book!.readingKey}.toList()
+      ..sort();
+    final owned = selectedId == null
+        ? const <String>{}
+        : ref
+                  .watch(
+                    ownedKeysProvider((
+                      libraryId: selectedId,
+                      keys: keys.join(','),
+                    )),
+                  )
+                  .valueOrNull ??
+              const <String>{};
+
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -102,7 +146,7 @@ class _BarcodeSheetState extends ConsumerState<BarcodeSheet> {
                       isSaving: _isSaving,
                       onSave: foundHits.isEmpty
                           ? null
-                          : () => _save(libraryId, foundHits),
+                          : () => _save(libraryId, foundHits, owned),
                     );
                   },
                   error: (e, _) => Text('Could not load libraries: $e'),
@@ -143,7 +187,10 @@ class _BarcodeSheetState extends ConsumerState<BarcodeSheet> {
                     onDismissed: (_) => ref
                         .read(barcodeSessionProvider.notifier)
                         .remove(hit.isbn),
-                    child: _HitTile(hit: hit),
+                    child: _HitTile(
+                      hit: hit,
+                      alreadyIn: owned.contains(hit.book!.readingKey),
+                    ),
                   );
                 },
               ),
@@ -155,9 +202,11 @@ class _BarcodeSheetState extends ConsumerState<BarcodeSheet> {
 }
 
 class _HitTile extends StatelessWidget {
-  const _HitTile({required this.hit});
+  const _HitTile({required this.hit, required this.alreadyIn});
 
   final BarcodeHit hit;
+  // The chosen library has it, so saving adds a copy
+  final bool alreadyIn;
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +223,12 @@ class _HitTile extends StatelessWidget {
               errorBuilder: (_, _, _) => const Icon(Icons.menu_book),
             ),
       title: Text(book.title),
-      subtitle: Text(book.authorLine ?? 'Unknown author'),
+      subtitle: Text(
+        alreadyIn
+            ? 'Already in this library, saving adds a copy'
+            : book.authorLine ?? 'Unknown author',
+        style: alreadyIn ? const TextStyle(color: AppColors.warning) : null,
+      ),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/isbn.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
+import 'package:shelf_snap/core/widgets/confirm_dialog.dart';
 import 'package:shelf_snap/features/library/models/book_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
 import 'package:shelf_snap/features/library/repositories/library_repository.dart';
@@ -108,11 +109,29 @@ class _AddBookFormState extends ConsumerState<AddBookForm> {
     setState(() => _isSaving = true);
     // Captured now: the form closes before the message shows
     final messenger = ScaffoldMessenger.of(context);
+    final repo = ref.read(libraryRepositoryProvider);
 
     try {
-      final result = await ref
-          .read(libraryRepositoryProvider)
-          .addBooks(widget.libraryId, [book]);
+      // Same title and author (or ISBN, or exact title) becomes an extra
+      // copy on save, so ask first
+      final existing = await repo.findBookInLibrary(widget.libraryId, book);
+      if (!mounted) return;
+      if (existing != null) {
+        final addCopy = await showConfirmDialog(
+          context,
+          icon: Icons.library_books_outlined,
+          title: 'Already in this library',
+          message: '${book.title} is already here. Add another copy?',
+          confirmLabel: 'Add copy',
+        );
+        if (!mounted) return;
+        if (!addCopy) {
+          setState(() => _isSaving = false);
+          return;
+        }
+      }
+
+      final result = await repo.addBooks(widget.libraryId, [book]);
       messenger.showMessage(LibraryRepository.savedMessage(result));
       if (!mounted) return;
       Navigator.pop(context);
