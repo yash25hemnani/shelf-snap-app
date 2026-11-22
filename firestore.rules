@@ -150,6 +150,14 @@ service cloud.firestore {
           && (before == null || !existsAfter(handlePath(before))));
       }
 
+      // adminLocked is set and cleared only by the admin panel (admin SDK).
+      // While it's set the library has to stay private.
+      function lockKept() {
+        let locked = resource.data.get('adminLocked', false);
+        return request.resource.data.get('adminLocked', false) == locked
+          && (!locked || request.resource.data.get('access', 'private') == 'private');
+      }
+
       // resource == null: a deleted library reads as missing instead of failing.
       // Member check first: old libraries have no access field. An unlisted
       // library opens by id (found through its handle) but is never listed;
@@ -168,6 +176,7 @@ service cloud.firestore {
         && request.resource.data.bookCount == 0
         && request.resource.data.uniqueCount == 0
         && request.resource.data.get('access', 'private') in ['private', 'unlisted', 'public']
+        && !('adminLocked' in request.resource.data)
         && handleOk();
 
       allow update: if signedIn() && (
@@ -177,6 +186,7 @@ service cloud.firestore {
           && request.resource.data.ownerId == resource.data.ownerId
           && uid() in request.resource.data.members
           && request.resource.data.get('access', 'private') in ['private', 'unlisted', 'public']
+          && lockKept()
           && handleOk())
 
         // Owner handing the library to another member, who becomes an

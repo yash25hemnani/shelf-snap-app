@@ -42,6 +42,8 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
 
   bool get _isEditing => widget.library != null;
 
+  bool get _isLocked => widget.library?.adminLocked ?? false;
+
   @override
   void initState() {
     super.initState();
@@ -277,12 +279,18 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
                       ),
                     ],
                     selected: {_access},
-                    onSelectionChanged: (selection) =>
-                        setState(() => _access = selection.first),
+                    // null disables it: a locked library stays private
+                    onSelectionChanged: _isLocked
+                        ? null
+                        : (selection) =>
+                              setState(() => _access = selection.first),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    switch (_access) {
+                    _isLocked
+                        ? 'Made private by ShelfSnap after a report. It can '
+                              "only be opened up again once it's reviewed."
+                        : switch (_access) {
                       LibraryAccess.public =>
                         'Anyone can find this library and see its public books',
                       LibraryAccess.unlisted =>

@@ -22,6 +22,9 @@ class LibraryModel {
   final LibraryAccess access;
   // Web address name, the {handle} in /lib/{handle}; reserved in libraryHandles
   final String? handle;
+  // Set by an admin after a report: the library stays private until they
+  // clear it. Read-only here; rules reject any change from the app.
+  final bool adminLocked;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -38,6 +41,7 @@ class LibraryModel {
     this.banner = AppColors.defaultBanner,
     this.access = LibraryAccess.private,
     this.handle,
+    this.adminLocked = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -79,6 +83,7 @@ class LibraryModel {
           LibraryAccess.values.asNameMap()[map['access']] ??
           LibraryAccess.private,
       handle: map['handle'],
+      adminLocked: map['adminLocked'] == true,
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       updatedAt: (map['updatedAt'] as Timestamp).toDate(),
     );
