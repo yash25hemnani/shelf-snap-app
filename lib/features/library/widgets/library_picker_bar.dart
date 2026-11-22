@@ -50,6 +50,9 @@ class LibraryPickerBar extends StatelessWidget {
         const SizedBox(width: 12),
         FilledButton(
           onPressed: isSaving ? null : onSave,
+          // Fixed width, so swapping the label for the spinner doesn't resize
+          // the button and shift the dropdown
+          style: FilledButton.styleFrom(minimumSize: const Size(96, 52)),
           child: isSaving
               ? const SizedBox.square(
                   dimension: 16,
