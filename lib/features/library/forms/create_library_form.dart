@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
+import 'package:shelf_snap/core/widgets/confirm_dialog.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
 
@@ -114,6 +115,27 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
     final handle = _access != LibraryAccess.private
         ? (typed.isEmpty ? null : typed)
         : oldHandle;
+
+    // Nothing redirects from an old handle, so a shared link or printed QR
+    // code stops working. Only matters when the library was open to links.
+    final breaksLinks =
+        _isEditing &&
+        widget.library!.isOpen &&
+        oldHandle != null &&
+        handle != oldHandle;
+    if (breaksLinks) {
+      final confirmed = await showConfirmDialog(
+        context,
+        icon: Icons.link_off_rounded,
+        title: 'Change the link?',
+        message:
+            'The old link and QR code will stop working. Anyone who saved '
+            'or printed them will need the new one.',
+        confirmLabel: 'Change link',
+        destructive: true,
+      );
+      if (!confirmed || !mounted) return;
+    }
 
     final library = LibraryModel(
       name: name,
@@ -362,7 +384,13 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
                         prefixText: '/lib/',
                         hintText: 'book-buddies',
                         // The full link is copied from the library page
-                        helperText: 'The end of the link you share',
+                        helperText:
+                            _isEditing &&
+                                widget.library!.isOpen &&
+                                widget.library!.handle != null
+                            ? 'Changing it stops the old link and QR code working'
+                            : 'The end of the link you share',
+                        helperMaxLines: 2,
                         errorText: _handleError,
                       ),
                       validator: _validateHandle,
