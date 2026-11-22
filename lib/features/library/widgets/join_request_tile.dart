@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
+import 'package:shelf_snap/core/widgets/notification_row.dart';
 import 'package:shelf_snap/features/library/models/join_request.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
 
@@ -55,58 +55,26 @@ class _JoinRequestTileState extends ConsumerState<JoinRequestTile> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final request = widget.request;
-    final bold = const TextStyle(fontWeight: FontWeight.w600);
+    const bold = TextStyle(fontWeight: FontWeight.w600);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return NotificationRow(
+      avatarSeed: request.uid,
+      message: TextSpan(
         children: [
-          Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(text: '@${request.username}', style: bold),
-                if (widget.showLibrary) ...[
-                  const TextSpan(text: ' wants to join '),
-                  TextSpan(text: request.libraryName, style: bold),
-                ] else
-                  const TextSpan(text: ' wants to join'),
-              ],
-            ),
-            style: textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: _busy ? null : () => _answer(false),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.textSecondary,
-                ),
-                child: const Text('Decline'),
-              ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _busy ? null : () => _answer(true),
-                child: _busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Approve'),
-              ),
-            ],
-          ),
+          TextSpan(text: '@${request.username}', style: bold),
+          if (widget.showLibrary) ...[
+            const TextSpan(text: ' wants to join '),
+            TextSpan(text: request.libraryName, style: bold),
+          ] else
+            const TextSpan(text: ' wants to join'),
         ],
       ),
+      createdAt: request.createdAt,
+      acceptLabel: 'Approve',
+      busy: _busy,
+      onAccept: () => _answer(true),
+      onDecline: () => _answer(false),
     );
   }
 }

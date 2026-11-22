@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
 import 'package:shelf_snap/core/widgets/confirm_dialog.dart';
+import 'package:shelf_snap/core/widgets/notification_row.dart';
 import 'package:shelf_snap/core/widgets/user_avatar.dart';
 import 'package:shelf_snap/features/auth/services/auth_service.dart';
 import 'package:shelf_snap/features/library/models/join_request.dart';
@@ -268,10 +269,12 @@ class _RequestsSection extends StatelessWidget {
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 8),
-          for (final request in requests) ...[
-            JoinRequestTile(key: ValueKey(request.uid), request: request),
-            if (request != requests.last) const SizedBox(height: 8),
-          ],
+          NotificationGroup(
+            children: [
+              for (final request in requests)
+                JoinRequestTile(key: ValueKey(request.uid), request: request),
+            ],
+          ),
         ],
       ),
     );
