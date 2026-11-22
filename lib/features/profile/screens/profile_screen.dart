@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
+import 'package:shelf_snap/core/utils/snackbar.dart';
 import 'package:shelf_snap/core/widgets/confirm_dialog.dart';
 import 'package:shelf_snap/core/widgets/user_avatar.dart';
 import 'package:shelf_snap/features/auth/services/auth_service.dart';
@@ -15,6 +16,7 @@ import 'package:shelf_snap/features/profile/providers/user_provider.dart';
 import 'package:shelf_snap/features/profile/screens/edit_profile_screen.dart';
 import 'package:shelf_snap/features/reading/screens/reading_logs_screen.dart';
 import 'package:shelf_snap/features/reading/screens/reading_stats_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -210,7 +212,118 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 32),
+
+          const _Credits(),
         ],
+      ),
+    );
+  }
+}
+
+// Laid out like a book's colophon, the maker's note on its last page: a
+// printer's rule with a gold diamond, the app name and maker, then the
+// GitHub and LinkedIn links, which open in their apps or the browser
+class _Credits extends StatelessWidget {
+  static const _githubUrl = 'https://github.com/yash25hemnani';
+  static const _linkedInUrl = 'https://www.linkedin.com/in/yash-hemnani-yh25';
+
+  const _Credits();
+
+  Future<void> _open(BuildContext context, String url) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) messenger.showError("Couldn't open the link");
+    } catch (e) {
+      debugPrint('launchUrl failed: $e');
+      messenger.showError("Couldn't open the link");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final linkStyle = TextButton.styleFrom(
+      foregroundColor: AppColors.primary,
+      textStyle: theme.textTheme.labelLarge?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+    );
+
+    const rule = SizedBox(
+      width: 40,
+      child: Divider(height: 1, thickness: 1, color: AppColors.border),
+    );
+
+    return Column(
+      children: [
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            rule,
+            SizedBox(width: 10),
+            _Diamond(size: 7),
+            SizedBox(width: 10),
+            rule,
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'ShelfSnap',
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: AppColors.text,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Made by Yash Hemnani',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextButton(
+              style: linkStyle,
+              onPressed: () => _open(context, _githubUrl),
+              child: const Text('GitHub'),
+            ),
+            // Same diamond as the rule, so the links read as one set
+            const _Diamond(size: 4),
+            TextButton(
+              style: linkStyle,
+              onPressed: () => _open(context, _linkedInUrl),
+              child: const Text('LinkedIn'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// Small gold square turned 45°, the ornament in the credits
+class _Diamond extends StatelessWidget {
+  final double size;
+
+  const _Diamond({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: 0.785398, // 45° in radians
+      child: SizedBox.square(
+        dimension: size,
+        child: const ColoredBox(color: AppColors.secondary),
       ),
     );
   }
