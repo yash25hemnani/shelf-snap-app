@@ -515,6 +515,37 @@ class LibraryRepository {
     await books.doc(bookId).update({'isbn': isbn});
   }
 
+  // Fixes what a scan got wrong. Search tokens and the reading key come
+  // from these fields, so they're rewritten with them.
+  Future<void> updateDetails(
+    String libraryId,
+    String bookId, {
+    required String title,
+    String? subtitle,
+    required List<String> authors,
+    String? coverUrl,
+  }) {
+    final edited = BookModel(
+      title: title,
+      subtitle: subtitle,
+      authors: authors,
+    );
+
+    return _db
+        .collection('libraries')
+        .doc(libraryId)
+        .collection('books')
+        .doc(bookId)
+        .update({
+          'title': title,
+          'subtitle': subtitle,
+          'authors': authors,
+          'coverUrl': coverUrl,
+          'searchTokens': edited.searchTokens,
+          'readingKey': edited.readingKey,
+        });
+  }
+
   // Private books are hidden from viewers; only editors can change this
   Future<void> updateVisibility(
     String libraryId,

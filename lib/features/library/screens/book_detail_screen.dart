@@ -16,6 +16,7 @@ import 'package:shelf_snap/features/lending/widgets/book_loans_card.dart';
 import 'package:shelf_snap/features/library/models/book_model.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
+import 'package:shelf_snap/features/library/sheets/edit_book_sheet.dart';
 import 'package:shelf_snap/features/library/sheets/edit_isbn_sheet.dart';
 import 'package:shelf_snap/features/library/widgets/status_dropdown.dart';
 import 'package:shelf_snap/features/library/widgets/wikipedia_card.dart';
@@ -366,6 +367,16 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
             PopupMenuButton<void>(
               enabled: !_removing,
               itemBuilder: (_) => [
+                // The live book, so the sheet starts from the latest edit
+                if (canEditCopy)
+                  PopupMenuItem(
+                    onTap: () => EditBookSheet.show(context, book),
+                    child: const ListTile(
+                      leading: Icon(Icons.edit_outlined),
+                      title: Text('Edit details'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
                 PopupMenuItem(
                   onTap: _remove,
                   child: const ListTile(
