@@ -373,7 +373,10 @@ service cloud.firestore {
         && request.resource.data.status in ['accepted', 'declined']
         && changed().hasOnly(['status', 'respondedAt']);
 
-      allow delete: if false;
+      // The sender takes back an invite nobody has answered yet
+      allow delete: if signedIn()
+        && resource.data.fromUid == uid()
+        && resource.data.status == 'pending';
     }
 
     // ---------- Loans ----------

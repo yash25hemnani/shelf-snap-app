@@ -3,13 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
+import 'package:shelf_snap/core/utils/snackbar.dart';
 import 'package:shelf_snap/features/auth/services/auth_service.dart';
+import 'package:shelf_snap/features/invites/models/invite_model.dart';
 import 'package:shelf_snap/features/invites/providers/invite_provider.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/profile/models/user_model.dart';
 import 'package:shelf_snap/features/profile/providers/user_provider.dart';
 
-// Search people by username and invite them to a library
+// Search people by username and invite them to a library. With the search
+// box empty, it lists invites still waiting for an answer, which can be
+// taken back.
 class InviteSheet extends ConsumerStatefulWidget {
   final LibraryModel library;
   const InviteSheet({super.key, required this.library});
@@ -32,6 +36,7 @@ class _InviteSheetState extends ConsumerState<InviteSheet> {
   List<UserModel> _results = [];
   final Set<String> _sent = {}; // uids invited while the sheet is open
   String? _sendingUid; // uid with a request in flight
+  String? _cancellingId; // invite being taken back
 
   // The sheet's own messenger, so SnackBars show on top of the sheet
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -45,6 +50,7 @@ class _InviteSheetState extends ConsumerState<InviteSheet> {
 
   // Runs on every keystroke in the search box
   void _onChanged(String text) {
+    setState(() {}); // swaps between the waiting list and the results
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 200), () => _search(text));
   }
@@ -68,11 +74,11 @@ class _InviteSheetState extends ConsumerState<InviteSheet> {
     // Your own profile, already loaded by AuthGate
     final me = ref.read(userProfileProvider(uid)).valueOrNull;
     final pending = ref
-        .read(pendingInviteesProvider(widget.library.id!))
+        .read(pendingSentInvitesProvider(widget.library.id!))
         .valueOrNull;
     if (me == null || _sendingUid != null) return;
     // Guards a tap that lands before the list above has loaded
-    if (pending?.contains(to.uid) ?? false) return;
+    if (pending?.any((i) => i.toUid == to.uid) ?? false) return;
 
     setState(() => _sendingUid = to.uid);
     try {
@@ -81,28 +87,45 @@ class _InviteSheetState extends ConsumerState<InviteSheet> {
           .sendInvite(library: widget.library, from: me, to: to);
       if (mounted) setState(() => _sent.add(to.uid));
     } catch (e) {
-      _showError("Couldn't invite @${to.username}, check your connection");
+      debugPrint('sendInvite failed: $e');
+      _messengerKey.currentState?.showError(
+        "Couldn't invite @${to.username}, check your connection",
+      );
     } finally {
       if (mounted) setState(() => _sendingUid = null);
     }
   }
 
-  void _showError(String message) {
-    _messengerKey.currentState
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: AppColors.error),
+  // No confirm: inviting them again is one tap away
+  Future<void> _cancel(InviteModel invite, String name) async {
+    if (_cancellingId != null) return;
+
+    setState(() => _cancellingId = invite.id);
+    try {
+      await ref.read(inviteRepositoryProvider).cancel(invite);
+      if (!mounted) return;
+      setState(() => _sent.remove(invite.toUid));
+      _messengerKey.currentState?.showMessage('Took back the invite to $name');
+    } catch (e) {
+      debugPrint('cancel invite failed: $e');
+      _messengerKey.currentState?.showError(
+        "Couldn't take back the invite, check your connection",
       );
+    } finally {
+      if (mounted) setState(() => _cancellingId = null);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final pending =
+        ref.watch(pendingSentInvitesProvider(widget.library.id!)).valueOrNull ??
+        const <InviteModel>[];
     // Invites from earlier visits, plus ones sent just now (shown straight
     // away, before Firestore reports them)
-    final invited = {
-      ...?ref.watch(pendingInviteesProvider(widget.library.id!)).valueOrNull,
-      ..._sent,
-    };
+    final invited = {for (final i in pending) i.toUid, ..._sent};
+    final searching = _searchController.text.trim().isNotEmpty;
+    final textTheme = Theme.of(context).textTheme;
 
     // Fixed height so the results list can scroll inside the sheet
     return FractionallySizedBox(
@@ -121,7 +144,7 @@ class _InviteSheetState extends ConsumerState<InviteSheet> {
                 TextField(
                   controller: _searchController,
                   onChanged: _onChanged,
-                  autofocus: true,
+                  autofocus: pending.isEmpty,
                   autocorrect: false,
                   enableSuggestions: false,
                   textCapitalization: TextCapitalization.none,
@@ -134,28 +157,47 @@ class _InviteSheetState extends ConsumerState<InviteSheet> {
                 Expanded(
                   child: ListView(
                     children: [
-                      for (final user in _results)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(user.name),
-                          subtitle: Text('@${user.username}'),
-                          trailing: invited.contains(user.uid)
-                              ? const Text('Sent')
-                              : FilledButton.tonal(
-                                  // Disabled while any invite is sending
-                                  onPressed: _sendingUid == null
-                                      ? () => _invite(user)
-                                      : null,
-                                  child: _sendingUid == user.uid
-                                      ? const SizedBox.square(
-                                          dimension: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Text('Invite'),
-                                ),
+                      if (searching)
+                        for (final user in _results)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(user.name),
+                            subtitle: Text('@${user.username}'),
+                            trailing: invited.contains(user.uid)
+                                ? const Text('Sent')
+                                : FilledButton.tonal(
+                                    // Disabled while any invite is sending
+                                    onPressed: _sendingUid == null
+                                        ? () => _invite(user)
+                                        : null,
+                                    child: _sendingUid == user.uid
+                                        ? const SizedBox.square(
+                                            dimension: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Text('Invite'),
+                                  ),
+                          )
+                      else if (pending.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 4),
+                          child: Text(
+                            'Waiting for an answer',
+                            style: textTheme.titleSmall,
+                          ),
                         ),
+                        for (final invite in pending)
+                          _PendingInviteTile(
+                            key: ValueKey(invite.id),
+                            invite: invite,
+                            busy: _cancellingId == invite.id,
+                            onCancel: _cancellingId == null
+                                ? (name) => _cancel(invite, name)
+                                : null,
+                          ),
+                      ],
                     ],
                   ),
                 ),
@@ -164,6 +206,44 @@ class _InviteSheetState extends ConsumerState<InviteSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// One unanswered invite, with the invitee's name once their profile loads
+class _PendingInviteTile extends ConsumerWidget {
+  final InviteModel invite;
+  final bool busy;
+  // Gets the name to show in the message; null while another is cancelling
+  final void Function(String name)? onCancel;
+
+  const _PendingInviteTile({
+    super.key,
+    required this.invite,
+    required this.busy,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userProfileProvider(invite.toUid)).valueOrNull;
+    final name = user?.name ?? 'Someone';
+    final onCancel = this.onCancel;
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(name),
+      subtitle: user == null ? null : Text('@${user.username}'),
+      trailing: busy
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : TextButton(
+              onPressed: onCancel == null ? null : () => onCancel(name),
+              style: TextButton.styleFrom(foregroundColor: AppColors.error),
+              child: const Text('Take back'),
+            ),
     );
   }
 }

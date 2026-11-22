@@ -10,14 +10,14 @@ final incomingInvitesProvider =
       (ref, uid) => ref.watch(inviteRepositoryProvider).watchIncoming(uid),
     );
 
-// Uids already invited to a library by the signed-in user and not yet
-// answered, so the invite sheet doesn't offer them again
-final pendingInviteesProvider = StreamProvider.autoDispose
-    .family<Set<String>, String>((ref, libraryId) {
+// Invites to a library the signed-in user sent that nobody has answered,
+// so the invite sheet can list them and doesn't offer those people again
+final pendingSentInvitesProvider = StreamProvider.autoDispose
+    .family<List<InviteModel>, String>((ref, libraryId) {
       final uid = ref.watch(currentUidProvider).valueOrNull;
-      if (uid == null) return Stream.value(const {});
+      if (uid == null) return Stream.value(const []);
 
       return ref
           .watch(inviteRepositoryProvider)
-          .watchPendingInvitees(libraryId, uid);
+          .watchPendingSent(libraryId, uid);
     });

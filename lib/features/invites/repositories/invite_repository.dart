@@ -40,21 +40,34 @@ class InviteRepository {
         );
   }
 
-  // People with an unanswered invite to this library from [fromUid]. The
+  // Unanswered invites to this library from [fromUid], newest first. The
   // rules only let senders read their own invites, hence the fromUid filter.
-  Stream<Set<String>> watchPendingInvitees(String libraryId, String fromUid) {
+  // Capped, since the owner sees them all in the invite sheet.
+  Stream<List<InviteModel>> watchPendingSent(
+    String libraryId,
+    String fromUid, {
+    int limit = 50,
+  }) {
     return _db
         .collection('invites')
         .where('fromUid', isEqualTo: fromUid)
         .where('libraryId', isEqualTo: libraryId)
         .where('status', isEqualTo: InviteStatus.pending.name)
+        .limit(limit)
         .snapshots()
         .map(
-          (snap) => {
-            for (final doc in snap.docs) doc.data()['toUid'] as String,
-          },
+          (snap) =>
+              snap.docs
+                  .map((doc) => InviteModel.fromMap(doc.id, doc.data()))
+                  .toList()
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
         );
   }
+
+  // The sender takes an unanswered invite back. Deleted rather than marked,
+  // so the person can be invited again later with a fresh one.
+  Future<void> cancel(InviteModel invite) =>
+      _db.collection('invites').doc(invite.id).delete();
 
   Future<void> accept(InviteModel invite) async {
     final batch = _db.batch();
