@@ -38,6 +38,7 @@ class LibraryRepository {
       ..update(_db.collection('libraries').doc(library.id), {
         'name': library.name,
         'description': library.description,
+        'location': library.location,
         'banner': library.banner,
         'access': library.access.name,
         'handle': library.handle,

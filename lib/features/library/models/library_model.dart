@@ -12,6 +12,8 @@ class LibraryModel {
   final String? id;
   final String name;
   final String? description;
+  // Where the books are: a street address or a Google Maps link, as typed
+  final String? location;
   final String? coverUrl;
   final String ownerId;
   final int bookCount; // physical books, sum of noOfCopies
@@ -32,6 +34,7 @@ class LibraryModel {
     this.id,
     required this.name,
     this.description,
+    this.location,
     this.coverUrl,
     required this.ownerId,
     this.bookCount = 0,
@@ -49,6 +52,7 @@ class LibraryModel {
   Map<String, dynamic> toMap() => {
     'name': name,
     'description': description,
+    'location': location,
     'coverUrl': coverUrl,
     'ownerId': ownerId,
     'bookCount': bookCount,
@@ -67,6 +71,7 @@ class LibraryModel {
       id: id,
       name: map['name'] ?? 'Untitled',
       description: map['description'],
+      location: map['location'],
       coverUrl: map['coverUrl'],
       ownerId: map['ownerId'] ?? '',
       bookCount: (map['bookCount'] as num?)?.toInt() ?? 0,
@@ -90,6 +95,28 @@ class LibraryModel {
   }
 
   bool get isPublic => access == LibraryAccess.public;
+
+  // A typed link opens as it is; an address opens a Google Maps search.
+  // Null when there's no location.
+  Uri? get locationUri {
+    final text = location?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final link = Uri.tryParse(text);
+    if (link != null && (link.scheme == 'https' || link.scheme == 'http')) {
+      return link;
+    }
+    return Uri.https('www.google.com', '/maps/search/', {
+      'api': '1',
+      'query': text,
+    });
+  }
+
+  // True when the location is a link, so the page shows "Open in Maps"
+  // instead of an address it can't read
+  bool get locationIsLink {
+    final scheme = Uri.tryParse(location?.trim() ?? '')?.scheme;
+    return scheme == 'https' || scheme == 'http';
+  }
 
   // Public or unlisted: people outside can open it, ask to join, and see
   // its web page

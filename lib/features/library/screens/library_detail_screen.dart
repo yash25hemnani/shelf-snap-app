@@ -18,6 +18,7 @@ import 'package:shelf_snap/features/library/widgets/books_tab.dart';
 import 'package:shelf_snap/features/library/widgets/member_avatars.dart';
 import 'package:shelf_snap/features/library/widgets/members_tab.dart';
 import 'package:shelf_snap/features/profile/providers/user_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LibraryDetailScreen extends ConsumerStatefulWidget {
   final LibraryModel library;
@@ -293,6 +294,16 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
                                   style: textTheme.bodyMedium,
                                 ),
                               ],
+                              // Older private libraries may still hold one
+                              if (live.isPublic && live.locationUri != null) ...[
+                                const SizedBox(height: 8),
+                                _LocationRow(
+                                  label: live.locationIsLink
+                                      ? 'Open in Maps'
+                                      : live.location!.trim(),
+                                  uri: live.locationUri!,
+                                ),
+                              ],
                               if (runBy.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 _RunByRow(names: runBy),
@@ -370,6 +381,62 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
 }
 
 enum _LibraryAction { addBook, edit, delete, leave, report }
+
+// Pin and the library's address (or "Open in Maps" for a link), in green
+// because tapping it opens Google Maps or the browser
+class _LocationRow extends StatelessWidget {
+  final String label;
+  final Uri uri;
+
+  const _LocationRow({required this.label, required this.uri});
+
+  Future<void> _open(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) messenger.showError("Couldn't open Maps");
+    } catch (e) {
+      debugPrint('launchUrl failed: $e');
+      messenger.showError("Couldn't open Maps");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _open(context),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Icon(
+                Icons.place_outlined,
+                size: 16,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 // "Run by you, Asha and 2 others": the owner and editors, so visitors
 // know who looks after the library

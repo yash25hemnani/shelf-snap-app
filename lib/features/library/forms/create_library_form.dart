@@ -26,6 +26,7 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
 
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
+  final _locationController = TextEditingController();
   final _handleController = TextEditingController();
 
   // False until the user types a handle; until then it follows the name
@@ -53,6 +54,7 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
     if (library != null) {
       _nameController.text = library.name;
       _descController.text = library.description ?? '';
+      _locationController.text = library.location ?? '';
       _banner = library.banner;
       _handleController.text = library.handle ?? '';
       _handleEdited = library.handle != null;
@@ -85,6 +87,7 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
   void dispose() {
     _nameController.dispose();
     _descController.dispose();
+    _locationController.dispose();
     _handleController.dispose();
     super.dispose();
   }
@@ -99,6 +102,11 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
 
     final name = _nameController.text.trim();
     final desc = _descController.text.trim();
+    // Only public libraries show an address, so it's cleared otherwise
+    final typedLocation = _locationController.text.trim();
+    final location = _access == LibraryAccess.public && typedLocation.isNotEmpty
+        ? typedLocation
+        : null;
     final now = DateTime.now();
     final oldHandle = widget.library?.handle;
     final typed = _handleController.text.trim();
@@ -110,6 +118,7 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
     final library = LibraryModel(
       name: name,
       description: desc.isEmpty ? null : desc,
+      location: location,
       ownerId: widget.userId,
       banner: _banner,
       access: _access,
@@ -142,6 +151,7 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
             id: widget.library!.id,
             name: name,
             description: desc.isEmpty ? null : desc,
+            location: location,
             ownerId: widget.library!.ownerId,
             banner: _banner,
             access: _access,
@@ -258,6 +268,24 @@ class _CreateLibraryFormState extends ConsumerState<CreateLibraryForm> {
                     ),
                   ),
                   const SizedBox(height: 20),
+
+                  if (_access == LibraryAccess.public) ...[
+                    const _FieldLabel('Location (optional)'),
+                    TextFormField(
+                      controller: _locationController,
+                      maxLength: 300,
+                      minLines: 1,
+                      maxLines: 3,
+                      keyboardType: TextInputType.streetAddress,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        hintText: 'Address or Google Maps link',
+                        prefixIcon: Icon(Icons.place_outlined),
+                        helperText: 'Tapping it on the library page opens Maps',
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
 
                   const _FieldLabel('Who can find it'),
                   SegmentedButton<LibraryAccess>(
