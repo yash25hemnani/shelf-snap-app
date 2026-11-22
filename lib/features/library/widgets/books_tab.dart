@@ -40,6 +40,8 @@ class _BooksTabState extends ConsumerState<BooksTab> {
 
   bool get _selecting => _selected.isNotEmpty;
 
+  double get _keyboardHeight => MediaQuery.viewInsetsOf(context).bottom;
+
   // Waits for a pause in typing before searching
   void _onChanged(String text) {
     setState(() {}); // shows or hides the clear button
@@ -277,7 +279,7 @@ class _BooksTabState extends ConsumerState<BooksTab> {
           return const Center(child: Text('No copies out on loan'));
         }
         return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          padding: EdgeInsets.fromLTRB(16, 4, 16, 16 + _keyboardHeight),
           itemCount: loans.length,
           separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (_, i) =>
@@ -348,8 +350,9 @@ class _BooksTabState extends ConsumerState<BooksTab> {
   // a long press starts selecting (editors only).
   Widget _buildGrid(List<BookModel> books, {bool loadingMore = false}) {
     return GridView.builder(
-      // Top is small since the search band already leaves a gap
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      // Top is small since the search band already leaves a gap; the bottom
+      // clears the keyboard, which covers the page rather than shrinking it
+      padding: EdgeInsets.fromLTRB(16, 4, 16, 16 + _keyboardHeight),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 130,

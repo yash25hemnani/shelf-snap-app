@@ -177,6 +177,10 @@ class _LibraryDetailScreenState extends ConsumerState<LibraryDetailScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        // The header doesn't scroll away for the keyboard, so shrinking the
+        // page squeezed the search band and chips until they overflowed.
+        // The keyboard covers the lists instead, and they pad for it.
+        resizeToAvoidBottomInset: false,
         // No stretch effect at the scroll edges, which made the header bounce
         body: ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
