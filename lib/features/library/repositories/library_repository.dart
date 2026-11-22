@@ -150,20 +150,30 @@ class LibraryRepository {
     });
   }
 
-  // Find the doc for the same edition in a library, or null if there isn't one
+  // Find the doc for the same book, in any edition, in a library, or null if
+  // there isn't one. Books with no reading key (unknown title or no author)
+  // fall back to the ISBN, then to the exact title, since a book typed in
+  // without an author has nothing else to match on.
   Future<DocumentReference<Map<String, dynamic>>?> findBookInLibrary(
     String libraryId,
     BookModel book,
   ) async {
-    if (book.isbn == null) return null;
+    final readingKey = book.readingKey;
+    final isbn = book.isbn;
+    final hasTitle =
+        book.title.isNotEmpty && book.title != BookModel.unknownTitle;
+    if (readingKey == null && isbn == null && !hasTitle) return null;
 
-    final existingBook = await _db
+    final books = _db
         .collection('libraries')
         .doc(libraryId)
-        .collection('books')
-        .where('isbn', isEqualTo: book.isbn)
-        .limit(1)
-        .get();
+        .collection('books');
+    final query = readingKey != null
+        ? books.where('readingKey', isEqualTo: readingKey)
+        : isbn != null
+        ? books.where('isbn', isEqualTo: isbn)
+        : books.where('title', isEqualTo: book.title);
+    final existingBook = await query.limit(1).get();
 
     return existingBook.docs.isEmpty ? null : existingBook.docs.first.reference;
   }
@@ -178,16 +188,16 @@ class LibraryRepository {
     final batch = _db.batch();
     final now = DateTime.now();
 
-    // Books created earlier in this call, by ISBN, since the database
-    // doesn't have them yet
+    // Books created earlier in this call, by the same key findBookInLibrary
+    // matches on, since the database doesn't have them yet
     final created = <String, DocumentReference<Map<String, dynamic>>>{};
     var added = 0;
     var copies = 0;
 
     for (final book in books) {
-      final isbn = book.isbn;
+      final key = book.readingKey ?? book.isbn;
       final existingRef =
-          (isbn == null ? null : created[isbn]) ??
+          (key == null ? null : created[key]) ??
           await findBookInLibrary(libraryId, book);
 
       if (existingRef != null) {
@@ -198,7 +208,7 @@ class LibraryRepository {
 
       final bookRef = libraryRef.collection('books').doc();
       batch.set(bookRef, book.copyWith(addedAt: now).toMap());
-      if (isbn != null) created[isbn] = bookRef;
+      if (key != null) created[key] = bookRef;
       added++;
     }
 
@@ -223,6 +233,21 @@ class LibraryRepository {
       })
       ..update(libraryRef, {
         'bookCount': FieldValue.increment(1),
+        'updatedAt': Timestamp.now(),
+      });
+    return batch.commit();
+  }
+
+  // One copy fewer, keeping the book. The page stops at one copy and at the
+  // copies out on loan; the rules refuse fewer copies than are lent.
+  Future<void> removeCopy(String libraryId, String bookId) {
+    final libraryRef = _db.collection('libraries').doc(libraryId);
+    final batch = _db.batch()
+      ..update(libraryRef.collection('books').doc(bookId), {
+        'noOfCopies': FieldValue.increment(-1),
+      })
+      ..update(libraryRef, {
+        'bookCount': FieldValue.increment(-1),
         'updatedAt': Timestamp.now(),
       });
     return batch.commit();

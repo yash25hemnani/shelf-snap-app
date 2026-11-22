@@ -12,7 +12,7 @@ import 'package:shelf_snap/features/lending/models/loan_model.dart';
 import 'package:shelf_snap/features/lending/providers/loan_provider.dart';
 import 'package:shelf_snap/features/lending/repositories/loan_repository.dart';
 import 'package:shelf_snap/features/lending/sheets/request_loan_sheet.dart';
-import 'package:shelf_snap/features/lending/widgets/book_loans_card.dart';
+import 'package:shelf_snap/features/lending/widgets/book_loans_section.dart';
 import 'package:shelf_snap/features/library/models/book_model.dart';
 import 'package:shelf_snap/features/library/models/library_model.dart';
 import 'package:shelf_snap/features/library/providers/library_provider.dart';
@@ -38,6 +38,31 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   bool _removing = false;
   bool _summaryExpanded = false;
   bool _added = false; // saved from this page, so Add is turned off
+  bool _changingCopies = false; // a copy count write is on its way
+
+  // One copy more or fewer of this library book. The live book shows the
+  // new count once the write lands locally.
+  Future<void> _changeCopies(int by) async {
+    final libraryId = widget.book.libraryId;
+    final bookId = widget.book.id;
+    if (libraryId == null || bookId == null || _changingCopies) return;
+
+    final repository = ref.read(libraryRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _changingCopies = true);
+    try {
+      if (by > 0) {
+        await repository.addCopy(libraryId, bookId);
+      } else {
+        await repository.removeCopy(libraryId, bookId);
+      }
+    } catch (e) {
+      debugPrint('changeCopies failed: $e');
+      messenger.showError("Couldn't change the copies, check your connection");
+    } finally {
+      if (mounted) setState(() => _changingCopies = false);
+    }
+  }
 
   Future<void> _add(Future<bool> Function() onAdd) async {
     final saved = await onAdd();
@@ -292,16 +317,18 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
         ? null
         : ref.watch(readingLogProvider(readingKey)).valueOrNull;
 
-    // Search books only: which libraries the user owns already have this
-    // book, in any edition. A library book already knows where it lives.
+    // Search books only: which libraries the user owns or edits already
+    // have this book, in any edition. A library book already knows where it
+    // lives. The edition streams are live, so a library this page just
+    // saved to joins the list and can take more copies.
     final uid = AuthService().currentUser?.uid;
     final owned = <(LibraryModel, List<BookModel>)>[];
     if (bookId == null && readingKey != null && uid != null) {
       final libraries =
-          ref.watch(userLibrariesProvider(uid)).valueOrNull ?? const [];
+          ref.watch(editableLibrariesProvider(uid)).valueOrNull ?? const [];
       for (final library in libraries) {
         final id = library.id;
-        if (id == null || library.ownerId != uid) continue;
+        if (id == null) continue;
         final editions =
             ref
                 .watch(
@@ -458,108 +485,51 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
               ),
             ),
 
+            // Grouped under headings: you, this copy (or borrowing it), your
+            // other libraries, then the book itself. The heading's space
+            // separates groups; cards inside one sit close together.
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Viewers can ask to borrow; editors manage loans instead
-                  if (library != null &&
-                      !canEdit &&
-                      libraryId != null &&
-                      bookId != null) ...[
-                    _BorrowCard(book: book, library: library),
-                    const SizedBox(height: 12),
-                  ],
-                  if (canEdit && libraryId != null && bookId != null) ...[
-                    BookLoansCard(libraryId: libraryId, book: book),
-                    const SizedBox(height: 12),
-                  ],
-
-                  if (owned.isNotEmpty) ...[
-                    _InLibrariesCard(owned: owned, isbn: book.isbn),
-                    const SizedBox(height: 12),
-                  ],
-
                   // Only books on the reading list have something to show
                   if (log != null && readingKey != null) ...[
-                    SectionCard(
-                      icon: Icons.bar_chart_rounded,
-                      title: 'Your reading',
+                    _GroupHeading(
+                      'Your reading',
                       trailing: TextButton(
                         onPressed: () => _openLog(readingKey),
                         child: const Text('Open Log'),
                       ),
-                      child: _ReadingSummary(log: log),
                     ),
-                    const SizedBox(height: 12),
+                    SectionCard(child: _ReadingSummary(log: log)),
                   ],
 
-                  if (hasDetails) ...[
-                    SectionCard(
-                      icon: Icons.info_outline_rounded,
-                      title: 'Details',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (book.publisher != null)
-                            _InfoRow(label: 'Publisher', value: book.publisher),
-                          if (book.publishedDate != null)
-                            _InfoRow(
-                              label: 'Published',
-                              value: book.publishedDate,
-                            ),
-                          if (book.language case final language?)
-                            _InfoRow(
-                              label: 'Language',
-                              value: languageName(language),
-                            ),
-                          if (translatedFrom != null)
-                            _InfoRow(
-                              label: 'Translated from',
-                              value: languageName(translatedFrom),
-                            ),
-                          // Editors always see it, so a missing ISBN can be added
-                          if (book.isbn != null || canEditCopy)
-                            _InfoRow(
-                              label: 'ISBN',
-                              value: book.isbn,
-                              placeholder: 'Add',
-                              onTap: canEditCopy
-                                  ? () => EditIsbnSheet.show(context, book)
-                                  : null,
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  if (book.categories.isNotEmpty) ...[
-                    SectionCard(
-                      icon: Icons.local_offer_outlined,
-                      title: 'Genres',
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final category in book.categories)
-                            Chip(label: Text(category)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Only editors see the copy's details. Each row is
-                  // tapped to edit, so more fields can join it later.
+                  // Viewers can ask to borrow; editors manage the copy and
+                  // its loans instead. Only editors see the copy's details;
+                  // each row is tapped to edit.
+                  if (library != null &&
+                      !canEdit &&
+                      libraryId != null &&
+                      bookId != null)
+                    _BorrowCard(book: book, library: library),
                   if (canEdit) ...[
+                    const _GroupHeading('This copy'),
                     SectionCard(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'Your copy',
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (libraryId != null && bookId != null) ...[
+                            _CopiesRow(
+                              copies: book.noOfCopies,
+                              lent: book.lentCount,
+                              busy: _changingCopies,
+                              onAdd: () => _changeCopies(1),
+                              onRemove: () => _changeCopies(-1),
+                            ),
+                            BookLoansSection(libraryId: libraryId, book: book),
+                            const Divider(height: 24),
+                          ],
                           _InfoRow(
                             label: 'Acquired',
                             value: book.acquisition,
@@ -591,44 +561,93 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
+                  ],
+
+                  if (owned.isNotEmpty) ...[
+                    const _GroupHeading('In your libraries'),
+                    _InLibrariesCard(owned: owned, isbn: book.isbn),
+                  ],
+
+                  const _GroupHeading('About the book'),
+                  // The summary is reading, not a setting, so it sits on
+                  // the page rather than in a card
+                  if (description == null)
+                    Text('No summary available.', style: muted)
+                  else ...[
+                    Text(
+                      description,
+                      maxLines: _summaryExpanded ? null : 4,
+                      overflow: _summaryExpanded ? null : TextOverflow.ellipsis,
+                    ),
+                    // Short summaries fit in four lines anyway
+                    if (description.length > 200)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () => setState(
+                            () => _summaryExpanded = !_summaryExpanded,
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 36),
+                          ),
+                          child: Text(
+                            _summaryExpanded ? 'Show less' : 'Read more',
+                          ),
+                        ),
+                      ),
+                  ],
+
+                  if (hasDetails || book.categories.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    SectionCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (book.publisher != null)
+                            _InfoRow(label: 'Publisher', value: book.publisher),
+                          if (book.publishedDate != null)
+                            _InfoRow(
+                              label: 'Published',
+                              value: book.publishedDate,
+                            ),
+                          if (book.language case final language?)
+                            _InfoRow(
+                              label: 'Language',
+                              value: languageName(language),
+                            ),
+                          if (translatedFrom != null)
+                            _InfoRow(
+                              label: 'Translated from',
+                              value: languageName(translatedFrom),
+                            ),
+                          // Editors always see it, so a missing ISBN can be added
+                          if (book.isbn != null || canEditCopy)
+                            _InfoRow(
+                              label: 'ISBN',
+                              value: book.isbn,
+                              placeholder: 'Add',
+                              onTap: canEditCopy
+                                  ? () => EditIsbnSheet.show(context, book)
+                                  : null,
+                            ),
+                          if (book.categories.isNotEmpty) ...[
+                            if (hasDetails) const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final category in book.categories)
+                                  Chip(label: Text(category)),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
 
                   WikipediaCard(book: book),
-                  SectionCard(
-                    icon: Icons.notes_rounded,
-                    title: 'Summary',
-                    child: description == null
-                        ? Text('No summary available.', style: muted)
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                description,
-                                maxLines: _summaryExpanded ? null : 4,
-                                overflow: _summaryExpanded
-                                    ? null
-                                    : TextOverflow.ellipsis,
-                              ),
-                              // Short summaries fit in four lines anyway
-                              if (description.length > 200)
-                                TextButton(
-                                  onPressed: () => setState(
-                                    () => _summaryExpanded = !_summaryExpanded,
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: const Size(0, 36),
-                                  ),
-                                  child: Text(
-                                    _summaryExpanded
-                                        ? 'Show less'
-                                        : 'Read more',
-                                  ),
-                                ),
-                            ],
-                          ),
-                  ),
                 ],
               ),
             ),
@@ -681,6 +700,34 @@ class _BookDetailScreenState extends ConsumerState<BookDetailScreen> {
   }
 }
 
+// Names a group of cards on the page; the space above it is what
+// separates one group from the next
+class _GroupHeading extends StatelessWidget {
+  final String text;
+  final Widget? trailing;
+
+  const _GroupHeading(this.text, {this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 8),
+      // Fixed height so headings with and without a button line up
+      child: SizedBox(
+        height: 40,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+            ),
+            ?trailing,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // Libraries that already have this book; a row opens that library's copy,
 // the same edition when there is one
 class _InLibrariesCard extends StatelessWidget {
@@ -704,8 +751,6 @@ class _InLibrariesCard extends StatelessWidget {
     ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary);
 
     return SectionCard(
-      icon: Icons.local_library_outlined,
-      title: 'In your libraries',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -784,6 +829,71 @@ class _InfoRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: row,
+    );
+  }
+}
+
+// How many copies are on the shelf, with buttons to change it. Fewer stops
+// at one copy (Remove from library takes the last) and at the copies lent.
+class _CopiesRow extends StatelessWidget {
+  final int copies;
+  final int lent;
+  final bool busy;
+  final VoidCallback onAdd;
+  final VoidCallback onRemove;
+
+  const _CopiesRow({
+    required this.copies,
+    required this.lent,
+    required this.busy,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final canRemove = !busy && copies > 1 && copies > lent;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Copies', style: textTheme.bodyMedium),
+                if (lent > 0)
+                  Text(
+                    '$lent lent out',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: canRemove ? onRemove : null,
+            icon: const Icon(Icons.remove_rounded),
+            tooltip: 'One copy fewer',
+          ),
+          SizedBox(
+            width: 32,
+            child: Text(
+              '$copies',
+              textAlign: TextAlign.center,
+              style: textTheme.titleMedium,
+            ),
+          ),
+          IconButton(
+            onPressed: busy ? null : onAdd,
+            icon: const Icon(Icons.add_rounded),
+            tooltip: 'One more copy',
+          ),
+        ],
+      ),
     );
   }
 }
@@ -930,11 +1040,13 @@ class _BorrowCard extends ConsumerWidget {
       ),
     };
 
-    return SectionCard(
-      icon: Icons.handshake_outlined,
-      title: title,
-      trailing: trailing,
-      child: child,
+    // The state is the group's heading, with Cancel beside it
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _GroupHeading(title, trailing: trailing),
+        SectionCard(child: child),
+      ],
     );
   }
 }

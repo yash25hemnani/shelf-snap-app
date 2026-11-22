@@ -106,10 +106,11 @@ class _WikipediaCardState extends ConsumerState<WikipediaCard> {
     );
   }
 
-  // The card plus the gap below it, so a hidden card leaves no gap
+  // The card plus the gap above it, so a hidden card leaves no gap. It
+  // comes last in the book page's About group, after the details card.
   Widget _wrap(Widget child) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(top: 8),
       child: SectionCard(
         icon: Icons.travel_explore_rounded,
         title: 'More details',

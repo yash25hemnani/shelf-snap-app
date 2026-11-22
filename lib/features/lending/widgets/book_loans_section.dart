@@ -4,7 +4,6 @@ import 'package:shelf_snap/core/theme/app_colors.dart';
 import 'package:shelf_snap/core/utils/date_format.dart';
 import 'package:shelf_snap/core/utils/snackbar.dart';
 import 'package:shelf_snap/core/widgets/confirm_dialog.dart';
-import 'package:shelf_snap/core/widgets/section_card.dart';
 import 'package:shelf_snap/features/auth/services/auth_service.dart';
 import 'package:shelf_snap/features/lending/models/loan_model.dart';
 import 'package:shelf_snap/features/lending/providers/loan_provider.dart';
@@ -13,53 +12,41 @@ import 'package:shelf_snap/features/lending/sheets/answer_loan_sheet.dart';
 import 'package:shelf_snap/features/library/models/book_model.dart';
 
 // The editor's side of lending on a book page: open requests and the
-// copies that are out, each with its next step
-class BookLoansCard extends ConsumerWidget {
+// copies that are out, each with its next step. Rows only, with a divider
+// above each, so they sit inside the page's copy card; nothing when there
+// are none, since the Copies row above already shows how many are lent.
+class BookLoansSection extends ConsumerWidget {
   final String libraryId;
   final BookModel book;
 
-  const BookLoansCard({super.key, required this.libraryId, required this.book});
+  const BookLoansSection({
+    super.key,
+    required this.libraryId,
+    required this.book,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final muted = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary);
-
     final loans = ref
         .watch(bookLoansProvider((libraryId: libraryId, bookId: book.id!)))
         .valueOrNull;
-    // Nothing until we know, so "No requests" doesn't flash first
-    if (loans == null) return const SizedBox.shrink();
+    if (loans == null || loans.isEmpty) return const SizedBox.shrink();
 
     final copies = book.noOfCopies;
     final available = book.availableCopies;
 
-    return SectionCard(
-      icon: Icons.handshake_outlined,
-      title: 'Loans',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            '$available of $copies ${copies == 1 ? 'copy' : 'copies'} '
-            'on the shelf',
-            style: muted,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final loan in loans) ...[
+          const Divider(height: 24),
+          _LoanRow(
+            loan: loan,
+            canHandOver: available > 0,
+            lastCopy: copies <= 1,
           ),
-          if (loans.isEmpty) ...[
-            const SizedBox(height: 4),
-            Text('No requests yet', style: muted),
-          ],
-          for (final loan in loans) ...[
-            const Divider(height: 24),
-            _LoanRow(
-              loan: loan,
-              canHandOver: available > 0,
-              lastCopy: copies <= 1,
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }

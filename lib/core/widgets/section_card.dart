@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
 
 // A bordered white card with a title, an optional icon in a soft green
-// circle before it, an optional action on the right, and its content below
+// circle before it, an optional action on the right, and its content below.
+// Without a title it's just the card, for groups named by a heading above.
 class SectionCard extends StatelessWidget {
   final IconData? icon;
-  final String title;
+  final String? title;
   final Widget? trailing;
   final Widget child;
 
   const SectionCard({
     super.key,
     this.icon,
-    required this.title,
+    this.title,
     this.trailing,
     required this.child,
   });
@@ -20,12 +21,13 @@ class SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = this.icon;
+    final title = this.title;
     final trailing = this.trailing;
     // Without the icon circle the title needs the full left padding
-    final left = icon == null ? 16.0 : 12.0;
+    final left = icon == null || title == null ? 16.0 : 12.0;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(left, 12, 8, 16),
+      padding: EdgeInsets.fromLTRB(left, title == null ? 16 : 12, 8, 16),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(16),
@@ -35,33 +37,35 @@ class SectionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Fixed height so cards with and without a button line up
-          SizedBox(
-            height: 40,
-            child: Row(
-              children: [
-                if (icon != null) ...[
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primarySoft,
-                      shape: BoxShape.circle,
+          if (title != null) ...[
+            SizedBox(
+              height: 40,
+              child: Row(
+                children: [
+                  if (icon != null) ...[
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        color: AppColors.primarySoft,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, size: 22, color: AppColors.primaryDark),
                     ),
-                    child: Icon(icon, size: 22, color: AppColors.primaryDark),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
-                  const SizedBox(width: 12),
+                  ?trailing,
                 ],
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                ?trailing,
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
           // Right padding matches the left, since the card's is smaller
           // to leave room for the action button
           Padding(

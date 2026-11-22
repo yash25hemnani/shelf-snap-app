@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/features/auth/providers/auth_provider.dart';
 import 'package:shelf_snap/features/library/repositories/library_repository.dart';
@@ -14,6 +16,23 @@ final lastLibraryIdProvider = StateProvider<String?>((ref) {
   ref.watch(currentUidProvider);
   return null;
 });
+
+// Which of the given reading keys a library already has, for marking
+// duplicates before a save. Keys come comma-joined and sorted, since a List
+// isn't a stable family key. One read per 30 books (Firestore's whereIn cap).
+final ownedKeysProvider = FutureProvider.autoDispose
+    .family<Set<String>, ({String libraryId, String keys})>((ref, args) async {
+      if (args.keys.isEmpty) return {};
+      final keys = args.keys.split(',');
+      final repo = ref.watch(libraryRepositoryProvider);
+      return {
+        for (var i = 0; i < keys.length; i += 30)
+          ...await repo.ownedKeys(
+            args.libraryId,
+            keys.sublist(i, min(i + 30, keys.length)),
+          ),
+      };
+    });
 
 // Books loaded per page in the library detail grid
 const booksPageSize = 30;
@@ -86,8 +105,8 @@ final libraryBookProvider = StreamProvider.autoDispose
           .watchBook(ids.libraryId, ids.bookId),
     );
 
-// Every edition of one book in a library the user owns. Owners see
-// private books too, so there's no visibility filter.
+// Every edition of one book in a library the user owns or edits. Editors
+// see private books too, so there's no visibility filter.
 final ownedEditionsProvider = StreamProvider.autoDispose
     .family<List<BookModel>, ({String libraryId, String readingKey})>(
       (ref, args) => ref
@@ -95,8 +114,8 @@ final ownedEditionsProvider = StreamProvider.autoDispose
           .watchEditions(args.libraryId, args.readingKey, publicOnly: false),
     );
 
-// Keys from one chunk of search results that the user's own libraries
-// hold. Keyed by the joined keys, since lists don't compare by value.
+// Keys from one chunk of search results that the libraries the user owns
+// or edits hold. Keyed by the joined keys, since lists don't compare by value.
 final ownedReadingKeysProvider = FutureProvider.autoDispose
     .family<Set<String>, String>((ref, joinedKeys) async {
       final uid = ref.watch(currentUidProvider).valueOrNull;
@@ -106,7 +125,7 @@ final ownedReadingKeysProvider = FutureProvider.autoDispose
       final ownedIds = ref.watch(
         userLibrariesProvider(uid).select(
           (a) => (a.valueOrNull ?? const <LibraryModel>[])
-              .where((l) => l.ownerId == uid && l.id != null)
+              .where((l) => l.canEdit(uid) && l.id != null)
               .map((l) => l.id!)
               .join('|'),
         ),
