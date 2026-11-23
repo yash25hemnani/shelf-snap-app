@@ -1,6 +1,6 @@
 # ShelfSnap
 
-ShelfSnap reads the spines in a photo of your bookshelf and builds a catalogue you can search, share with people and lend from. It works for one reader, a whole family, or the shelf in a café.
+ShelfSnap reads the spines in a photo of your bookshelf and builds a catalogue you can search, share with people and lend from. It works for one reader, a whole family, or a library.
 
 **[Download the latest APK (Android)](https://github.com/yash25hemnani/shelf-snap-app/releases/latest/download/app-arm64-v8a-release.apk)** · [All releases](https://github.com/yash25hemnani/shelf-snap-app/releases) · [Website](https://shelf-snap-wrapper.vercel.app)
 
