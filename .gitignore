@@ -62,3 +62,4 @@ scripts/package*.json
 
 # Auto-generated Firebase Hosting workflows (broken: run npm, not Flutter)
 .github/
+release-notes.md
