@@ -17,24 +17,10 @@
           "projectId": "shelf-scan-28d17",
           "configurations": {
             "android": "1:726504803682:android:7d2b751d025c04fdba303b",
-            "ios": "1:726504803682:ios:8e8b92105f4522f1ba303b",
-            "web": "1:726504803682:web:1c5d2df65a32785aba303b"
+            "ios": "1:726504803682:ios:8e8b92105f4522f1ba303b"
           }
         }
       }
     }
-  },
-  "hosting": {
-    "public": "build/web",
-    "ignore": [
-      "firebase.json",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
   }
 }

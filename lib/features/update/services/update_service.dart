@@ -12,10 +12,9 @@ class UpdateService {
   static const _latestUrl =
       'https://api.github.com/repos/yash25hemnani/shelf-snap-app/releases/latest';
 
-  // Only the sideloaded Android app updates this way; the web build
-  // updates itself when Hosting is deployed
+  // Only the sideloaded Android app updates this way
   static bool get isSupported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+      defaultTargetPlatform == TargetPlatform.android;
 
   // The installed version, like "1.4.0"
   Future<String> installedVersion() async {

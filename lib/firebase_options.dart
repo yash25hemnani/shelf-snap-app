@@ -4,6 +4,8 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
+// The web app was dropped, so web has no config: Android and iOS only.
+
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
 /// Example:
@@ -17,7 +19,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      return web;
+      throw UnsupportedError('ShelfSnap has no web build.');
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -60,14 +62,5 @@ class DefaultFirebaseOptions {
     projectId: 'shelf-scan-28d17',
     storageBucket: 'shelf-scan-28d17.firebasestorage.app',
     iosBundleId: 'com.example.shelfSnap',
-  );
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyA4jp9jTl5KOuLaFDjqhPiGnYf8nTkRWKE',
-    appId: '1:726504803682:web:1c5d2df65a32785aba303b',
-    messagingSenderId: '726504803682',
-    projectId: 'shelf-scan-28d17',
-    authDomain: 'shelf-scan-28d17.firebaseapp.com',
-    storageBucket: 'shelf-scan-28d17.firebasestorage.app',
-    measurementId: 'G-M2245LP46T',
   );
 }

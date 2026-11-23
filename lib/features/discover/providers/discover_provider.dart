@@ -16,7 +16,7 @@ final discoverServiceProvider = Provider((ref) => DiscoverService());
 final shelfPhotoStoreProvider = Provider((ref) => ShelfPhotoStore());
 
 // The newest shelf photo on this phone that a book was found on; null when
-// there's none (another phone, cleared, or the web). Invalidated after
+// there's none (another phone, or cleared). Invalidated after
 // "Clear shelf photos".
 final shelfPhotoForBookProvider = FutureProvider.autoDispose
     .family<ShelfPhotoModel?, String>(

@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/features/library/services/library_link_service.dart';
 
 // Opens a library when the app is launched from a library link: the Join
-// button on its web catalog (shelfsnap://lib/{handle}), or the web app at
-// …/lib/{handle}. Sits above the signed-in app, so a link that started the
-// app while signed out opens once the user has signed in.
+// button on its web catalog (shelfsnap://lib/{handle}). Sits above the
+// signed-in app, so a link that started the app while signed out opens once
+// the user has signed in.
 class LibraryLinkListener extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -23,7 +23,7 @@ class _LibraryLinkListenerState extends ConsumerState<LibraryLinkListener> {
   StreamSubscription<Uri>? _links;
 
   void _onLink(Uri uri) {
-    // The web app reports every page address; only library links count
+    // Only library links count
     if (!uri.toString().contains('/lib/') || !mounted) return;
     LibraryLinkService.open(
       ref,

@@ -8,7 +8,7 @@ import 'package:shelf_snap/features/discover/models/shelf_photo_model.dart';
 
 // Discover shelf photos in the app's own folder on the phone: a JPEG plus a
 // JSON file with the outlines. Kept off Firestore and Storage, so photos
-// cost nothing and stay private. Web has no app folder, so it keeps none.
+// cost nothing and stay private.
 class ShelfPhotoStore {
   static const _folder = 'shelf_photos';
 
@@ -20,8 +20,6 @@ class ShelfPhotoStore {
   // Every saved photo, newest first. A photo whose JPEG is gone or whose
   // JSON can't be read is skipped.
   Future<List<ShelfPhotoModel>> _all() async {
-    if (kIsWeb) return const [];
-
     final photos = <ShelfPhotoModel>[];
     await for (final entity in (await _dir()).list()) {
       if (entity is! File || !entity.path.endsWith('.json')) continue;
@@ -47,8 +45,6 @@ class ShelfPhotoStore {
     required List<String> bookIds,
     required Map<String, Rect> outlines,
   }) async {
-    if (kIsWeb) throw Exception('Shelf photos are not kept on the web');
-
     final takenAt = DateTime.now();
     final id = '${takenAt.millisecondsSinceEpoch}';
     final dir = await _dir();
@@ -83,8 +79,6 @@ class ShelfPhotoStore {
 
   // How many photos are saved and how many bytes they take
   Future<({int count, int bytes})> usage() async {
-    if (kIsWeb) return (count: 0, bytes: 0);
-
     var count = 0;
     var bytes = 0;
     await for (final entity in (await _dir()).list()) {
@@ -97,8 +91,6 @@ class ShelfPhotoStore {
 
   // Deletes every shelf photo. Discovered books are untouched.
   Future<void> clear() async {
-    if (kIsWeb) return;
-
     try {
       final dir = await _dir();
       await dir.delete(recursive: true);

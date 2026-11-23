@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,8 +44,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   late Future<CameraController> _cameraFuture;
 
   ScanMode _mode = ScanMode.add;
-  // Shelf scan uses ML Kit, which has no web version
-  ScanInput _input = kIsWeb ? ScanInput.barcode : ScanInput.shelf;
+  ScanInput _input = ScanInput.shelf;
 
   // ISBN scanned again, highlighted in the status card for a moment
   String? _duplicateIsbn;
@@ -72,7 +70,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       _mode = mode;
     });
 
-    if (mode == ScanMode.discover && !kIsWeb) _setInput(ScanInput.shelf);
+    if (mode == ScanMode.discover) _setInput(ScanInput.shelf);
   }
 
   Future<void> _setInput(ScanInput input) async {
@@ -133,7 +131,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb) _cameraFuture = _setupCamera();
+    _cameraFuture = _setupCamera();
   }
 
   Future<CameraController> _setupCamera() async {
@@ -332,7 +330,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
         : hits.values.where((h) => h.status == HitStatus.found).length;
 
     // keep the OCR service alive while the screen is open
-    if (!kIsWeb) ref.watch(shelfCaptureServiceProvider);
+    ref.watch(shelfCaptureServiceProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -389,106 +387,59 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
                           PlaceSheet.show(context, settings: settings),
                     ),
                   ],
-                  // Discover reads shelf photos with ML Kit, which has no
-                  // web version
-                  if (isDiscover && kIsWeb)
-                    const Expanded(child: Center(child: _DiscoverWebNote()))
+                  // Status card from just below the aim box down to the toggle
+                  if (isShelf)
+                    const Spacer()
                   else ...[
-                    // Status card from just below the aim box down to the toggle
-                    if (isShelf)
-                      const Spacer()
-                    else ...[
-                      SizedBox(height: _cardGap(context)),
+                    SizedBox(height: _cardGap(context)),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: BarcodeStatusCard(
+                          highlightIsbn: _duplicateIsbn,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (_mode == ScanMode.add)
+                    ScanInputToggle(input: _input, onChanged: _setInput),
+
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Spacer(),
+                      if (isShelf)
+                        ShutterButton(
+                          pending: isDiscover
+                              ? _discoverPending
+                              : session.pending,
+                          maxPending: ScanSessionNotifier.maxPending,
+                          onPressed: isDiscover
+                              ? _captureDiscover
+                              : _captureShelf,
+                        )
+                      else
+                        const SizedBox(
+                          width: 88,
+                        ), // same width as the shutter, keeps the badge in place
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: BarcodeStatusCard(
-                            highlightIsbn: _duplicateIsbn,
+                        child: Center(
+                          child: ScanCountBadge(
+                            count: count,
+                            onTap: count == 0 ? null : _showResults,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
                     ],
-                    if (_mode == ScanMode.add && !kIsWeb)
-                      ScanInputToggle(input: _input, onChanged: _setInput),
+                  ),
 
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Spacer(),
-                        if (isShelf)
-                          ShutterButton(
-                            pending: isDiscover
-                                ? _discoverPending
-                                : session.pending,
-                            maxPending: ScanSessionNotifier.maxPending,
-                            onPressed: isDiscover
-                                ? _captureDiscover
-                                : _captureShelf,
-                          )
-                        else
-                          const SizedBox(
-                            width: 88,
-                          ), // same width as the shutter, keeps the badge in place
-                        Expanded(
-                          child: Center(
-                            child: ScanCountBadge(
-                              count: count,
-                              onTap: count == 0 ? null : _showResults,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-                  ],
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// Shown in Discover mode on the web, where shelf photos can't be read
-class _DiscoverWebNote extends StatelessWidget {
-  const _DiscoverWebNote();
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 32),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.phone_android_rounded,
-            size: 40,
-            color: Colors.white,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Discover needs the Android app',
-            style: textTheme.titleMedium?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Shelf photos can only be read on a phone. Your discovered books '
-            'are still here.',
-            textAlign: TextAlign.center,
-            style: textTheme.bodyMedium?.copyWith(color: Colors.white70),
-          ),
-        ],
       ),
     );
   }

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shelf_snap/core/theme/app_colors.dart';
@@ -297,22 +296,20 @@ class DiscoveredScreen extends ConsumerWidget {
                 : 'Your genres',
           ),
         ),
-        // The web keeps no shelf photos
-        if (!kIsWeb)
-          // onSelected runs after the menu closes, so the dialog can open
-          PopupMenuButton<bool>(
-            onSelected: (_) => _clearPhotos(context, ref),
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: true,
-                child: ListTile(
-                  leading: Icon(Icons.hide_image_outlined),
-                  title: Text('Clear shelf photos'),
-                  contentPadding: EdgeInsets.zero,
-                ),
+        // onSelected runs after the menu closes, so the dialog can open
+        PopupMenuButton<bool>(
+          onSelected: (_) => _clearPhotos(context, ref),
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: true,
+              child: ListTile(
+                leading: Icon(Icons.hide_image_outlined),
+                title: Text('Clear shelf photos'),
+                contentPadding: EdgeInsets.zero,
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
         const SizedBox(width: 4),
       ],
     );
